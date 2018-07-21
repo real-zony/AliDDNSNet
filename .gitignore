@@ -4,3 +4,5 @@
 
 /AliDDNSNet/obj/Release/netcoreapp2.1
 /AliDDNSNet/obj
+/AliDDNSNet/bin
+/AliDDNSNet/Properties/PublishProfiles
