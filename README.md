@@ -41,4 +41,4 @@ dotnet ./AliDDNSNet.dll -f ./settings.json2
 
 如果你的设备支持 Docker 环境，建议通过 Docker 运行 .NET Core 2.1 环境来执行本程序。
 
-[下载地址在这儿](https://)
+[下载地址在这儿](https://github.com/GameBelial/AliDDNSNet/releases)
