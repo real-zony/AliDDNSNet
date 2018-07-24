@@ -2,8 +2,14 @@
 
 AliDDNSNet 是基于 .NET Core 开发的动态 DNS 解析工具，借助于阿里云的 DNS API 来实现域名与动态 IP 的绑定功能。
 
-使用时请更改同目录下的 ```settings.json.example``` 为 ```settings.json``` 文件，同时也可以显示通过 ```-f``` 参数来制定配置文件路径。例如：
+使用时请更改同目录下的 ```settings.json.example``` 为 ```settings.json``` 文件，然后执行以下命令：
+```shell
+./AliDDNSNet
+```
+效果图：
+![1203160-20180722111356778-841949657.png](https://i.loli.net/2018/07/24/5b56ab6161f80.png)
 
+同时也可以显示通过 ```-f``` 参数来制定配置文件路径。例如：
 ```shell
 dotnet ./AliDDNSNet.dll -f ./settings.json2
 ```
