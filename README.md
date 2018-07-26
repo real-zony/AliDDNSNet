@@ -18,6 +18,12 @@ dotnet ./AliDDNSNet.dll -f ./settings.json2
 ./AliDDNSNet -f ./settings.json3
 ```
 
+### 群晖使用说明
+群晖安装推荐下载 Release 页面的 Linux 版本压缩包，将其通过 WinSCP 传输到群晖 NAS 上面，然后解压之后即可。
+例如我这里将其解压到了 ```/var/services/homes/myzony/ddns/``` 这个目录之下，那么我来到群晖的 DSM 管理面，打开控制面板->任务计划，添加一个新的任务，例如下图：
+![群晖设置图1](https://user-images.githubusercontent.com/3907132/43116947-dd3a4308-8f3c-11e8-892f-be7b97e4158c.png)
+![群晖设置图2](https://user-images.githubusercontent.com/3907132/43116948-dd987586-8f3c-11e8-815a-d575128d9f70.png)
+
 ## 配置说明：
 
 通过更改 ```settings.json```/```settings.json.example``` 的内容来实现 DDNS 更新。
