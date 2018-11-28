@@ -1,36 +1,21 @@
-﻿using AliDDNSNet.Request;
-using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web;
+using AliDDNSNet.Request;
+using Newtonsoft.Json;
 
-namespace AliDDNSNet
+namespace AliDDNSNet.Utility
 {
     public static class Utils
     {
-        public static ConfigurationClass config { get; set; }
-
         /// <summary>
-        /// 生成请求签名
+        /// 配置文件所读取的配置项结果
         /// </summary>
-        /// <param name="srcStr">请求体</param>
-        /// <returns>HMAC-SHA1 的 Base64 编码</returns>
-        public static string GenerateSignature(this string srcStr)
-        {
-            var signStr = $"GET&{HttpUtility.UrlEncode("/")}&{HttpUtility.UrlEncode(srcStr)}";
-
-            // 替换已编码的 URL 字符为大写字符
-            signStr = signStr.Replace("%2f", "%2F").Replace("%3d", "%3D").Replace("%2b", "%2B")
-                .Replace("%253a", "%253A");
-
-            var hmac = new HMACSHA1(Encoding.UTF8.GetBytes($"{config.access_key}&"));
-            return Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(signStr)));
-        }
+        public static ConfigurationClass Configuration { get; set; }
 
         /// <summary>
         /// 根据字典构建请求字符串
@@ -52,16 +37,6 @@ namespace AliDDNSNet
         }
 
         /// <summary>
-        /// 追加签名参数
-        /// </summary>
-        /// <param name="parameters">参数列表</param>
-        public static string AppendSignature(this SortedDictionary<string, string> parameters, string sign)
-        {
-            parameters.Add("Signature", sign);
-            return parameters.BuildRequestString();
-        }
-
-        /// <summary>
         /// 生成通用参数字典
         /// </summary>
         public static SortedDictionary<string, string> GenerateGenericParameters()
@@ -69,7 +44,7 @@ namespace AliDDNSNet
             var dict = new SortedDictionary<string, string>(StringComparer.Ordinal)
             {
                 {"Format", "json"},
-                {"AccessKeyId", config.access_id},
+                {"AccessKeyId", Configuration.access_id},
                 {"SignatureMethod", "HMAC-SHA1"},
                 {"SignatureNonce", Guid.NewGuid().ToString()},
                 {"Version", "2015-01-09"},
@@ -85,16 +60,16 @@ namespace AliDDNSNet
         /// </summary>
         public static async Task<string> SendGetRequest(IRequest request)
         {
-            var sign = request.Parameters.BuildRequestString().GenerateSignature();
+            var sign = request.Parameters.BuildRequestString().GenerateSignature(Configuration.access_key);
             var postUri = $"http://alidns.aliyuncs.com/?{request.Parameters.AppendSignature(sign)}";
 
             using (var client = new HttpClient())
             {
-                using (var resuest = new HttpRequestMessage(HttpMethod.Get, postUri))
+                using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, postUri))
                 {
-                    using (var response = await client.SendAsync(resuest))
+                    using (var httpResponse = await client.SendAsync(httpRequest))
                     {
-                        return await response.Content.ReadAsStringAsync();
+                        return await httpResponse.Content.ReadAsStringAsync();
                     }
                 }
             }
@@ -103,13 +78,13 @@ namespace AliDDNSNet
         /// <summary>
         /// 获得当前机器的公网 IP
         /// </summary>
-        public static async Task<string> GetCurentPublicIP()
+        public static async Task<string> GetCurrentPublicIpAddress()
         {
             using (var client = new HttpClient())
             {
-                using (var resuest = new HttpRequestMessage(HttpMethod.Get, "http://members.3322.org/dyndns/getip"))
+                using (var request = new HttpRequestMessage(HttpMethod.Get, "http://members.3322.org/dyndns/getip"))
                 {
-                    using (var response = await client.SendAsync(resuest))
+                    using (var response = await client.SendAsync(request))
                     {
                         return await response.Content.ReadAsStringAsync();
                     }
