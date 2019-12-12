@@ -77,9 +77,9 @@ namespace AliCloudDynamicDNS.Threading
             {
                 Elapsed?.Invoke(this, new EventArgs());
             }
-            catch(Exception E)
+            catch
             {
-                throw E;
+
             }
             finally
             {
