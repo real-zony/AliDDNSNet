@@ -81,7 +81,7 @@ namespace AliCloudDynamicDNS
                         var record = records.FirstOrDefault(x => x.SubName == subDomain.SubDomain);
                         if (record == null) continue;
                         if (record.Value == currentPubicIp) continue;
-                        
+
                         // 更新指定的子域名 IP。
                         var result = (await _apiRequestTool.UpdateRecordAsync(record.RecordId, currentPubicIp, subDomain)).SelectToken("$.RecordId").Value<string>();
                         if (result == null || result != record.RecordId)
@@ -93,6 +93,11 @@ namespace AliCloudDynamicDNS
             };
 
             _strongTimer.Start();
+            if (Interval == 0)
+            {
+                _strongTimer.Stop();
+                Environment.Exit(0);
+            }
         }
 
         public static Task<int> Main(string[] args) => CommandLineApplication.ExecuteAsync<Program>(args);
