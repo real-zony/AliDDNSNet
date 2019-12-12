@@ -12,18 +12,28 @@ AliDDNSNet 是基于 .NET Core 开发的动态 DNS 解析工具，借助于阿�
 
 ```json
 {
-  // 阿里云的 Access Id
-  "access_id": "",
-  // 阿里云的 Access Key
-  "access_key": "",
-  // TTL 时间
-  "interval": 600,
-  // 主域名
-  "domain": "example.com",
-  // 子域名前缀
-  "sub_domain": "test",
-  // 记录类型
-  "type": "A"
+    // 阿里云的 Access Id。
+    "AccessId": "AccessId",
+    // 阿里云的 Access Key。
+    "AccessKey": "AccessKey",
+    // 主域名。
+    "MainDomain": "example.com",
+    // 需要批量变更的子域名记录集合。
+    "SubDomains": [
+        {
+            // 子域名记录类型。
+            "Type": "A",
+            // 子域名记录前缀。
+            "SubDomain": "sub1",
+            // TTL 时间。
+            "Interval": 600
+        },
+        {
+            "Type": "A",
+            "SubDomain": "sub2",
+            "Interval": 600
+        }
+    ]
 }
 ```
 
