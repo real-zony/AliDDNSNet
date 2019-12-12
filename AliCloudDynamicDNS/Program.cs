@@ -29,8 +29,7 @@ namespace AliCloudDynamicDNS
         {
             await InitializeConfigurationAsync();
             InitializeStrongTimer();
-            ConsoleHelper.WriteMessage("程序已经开始运行...");
-
+            
             Console.ReadLine();
         }
 
@@ -51,6 +50,7 @@ namespace AliCloudDynamicDNS
             if (Interval < 60 && Interval != 0)
             {
                 ConsoleHelper.WriteError($"指定的时间周期必须大于或等于 60 秒，用户指定的值：{Interval}");
+                Environment.Exit(-1);
             }
 
             var intervalSec = (int) TimeSpan.FromSeconds(Interval).TotalMilliseconds;
@@ -93,9 +93,12 @@ namespace AliCloudDynamicDNS
             };
 
             _strongTimer.Start();
+            ConsoleHelper.WriteMessage("程序已经开始运行...");
+
             if (Interval == 0)
             {
                 _strongTimer.Stop();
+                ConsoleHelper.WriteMessage("程序执行完成...");
                 Environment.Exit(0);
             }
         }
