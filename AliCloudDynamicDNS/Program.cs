@@ -36,7 +36,7 @@ namespace AliCloudDynamicDNS
 
         private async Task InitializeConfigurationAsync()
         {
-            var filePath = Path.Combine(Path.GetDirectoryName(typeof(Program).Assembly.Location), FilePath ?? "settings.json");
+            var filePath = FilePath ?? Path.Combine(Environment.CurrentDirectory,"settings.json");
             if (!File.Exists(filePath))
             {
                 ConsoleHelper.WriteError("当前目录不存在配置文件，或者指定的配置文件路径不正确。");
