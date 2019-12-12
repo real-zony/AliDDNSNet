@@ -20,9 +20,13 @@ namespace AliCloudDynamicDNS.Configuration
             {
                 using (var read = new StreamReader(fs))
                 {
-                    return JsonConvert.DeserializeObject<ConfigurationModel>(await read.ReadToEndAsync());
+                    Configuration = JsonConvert.DeserializeObject<ConfigurationModel>(await read.ReadToEndAsync());
                 }
             }
+
+            return Configuration;
         }
+        
+        public static ConfigurationModel Configuration { get; private set; }
     }
 }
