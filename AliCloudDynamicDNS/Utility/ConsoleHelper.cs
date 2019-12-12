@@ -15,7 +15,7 @@ namespace AliCloudDynamicDNS.Utility
 
         public static void WriteMessage(string msg) => WriteDateTimeLine(Normal, msg);
 
-        public static void WriteError(string errMsg) => WriteDateTimeLine(errMsg, errMsg);
+        public static void WriteError(string errMsg) => WriteDateTimeLine(Error, errMsg);
 
         private static void WriteMsgType(string msgType)
         {
