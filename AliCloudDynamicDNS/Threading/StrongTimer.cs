@@ -77,8 +77,9 @@ namespace AliCloudDynamicDNS.Threading
             {
                 Elapsed?.Invoke(this, new EventArgs());
             }
-            catch
+            catch(Exception E)
             {
+                throw E;
             }
             finally
             {
@@ -89,9 +90,9 @@ namespace AliCloudDynamicDNS.Threading
                     {
                         _taskTimer.Change(Period, Timeout.Infinite);
                     }
+                    
+                    Monitor.Pulse(_taskTimer);
                 }
-
-                Monitor.Pulse(_taskTimer);
             }
         }
     }
