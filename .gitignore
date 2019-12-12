@@ -8,3 +8,7 @@
 /AliDDNSNet/Properties/PublishProfiles
 /.idea/
 /.idea/.idea.AliDDNSNet/.idea/.gitignore
+/AliCloudDynamicDNS/obj/
+/AliCloudDynamicDNS.Test/obj/
+/AliCloudDynamicDNS/bin/
+/AliCloudDynamicDNS.Test/bin/
