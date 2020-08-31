@@ -31,22 +31,59 @@ namespace AliCloudDynamicDNS
             await InitializeConfigurationAsync();
             InitializeStrongTimer();
             
-            Console.ReadLine();
+            await ConsoleAwaitExitAsync();
         }
 
-        private async Task InitializeConfigurationAsync()
+        private async Task ConsoleAwaitExitAsync()
         {
-            var filePath = FilePath ?? Path.Combine(Environment.CurrentDirectory,"settings.json");
-            if (!File.Exists(filePath))
-            {
-                ConsoleHelper.WriteError("当前目录不存在配置文件，或者指定的配置文件路径不正确。");
-                Environment.Exit(-1);
-            }
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("");
+            Console.WriteLine("==================== 可执行命令（不区分大小写） ====================");
+            Console.WriteLine("输入“cls”清屏");
+            Console.WriteLine("输入“ip”查看当前公网IP");
+            Console.WriteLine("输入“config”查看当前配置信息");
+            Console.WriteLine("输入“exit”退出程序");
+            Console.WriteLine("==================== 可执行命令（不区分大小写） ====================");
+            Console.WriteLine("请输入：");
+            Console.ForegroundColor = ConsoleColor.Gray;
 
-            await ConfigurationHelper.ReadConfigFileAsync(filePath);
+            string command = Console.ReadLine().ToLower();
+            Console.WriteLine("");
+            switch (command)
+            {
+                case "exit":
+                    break;
+                case "cls":
+                    Console.Clear();
+                    ConsoleWriteConfigInfo();
+                    await ConsoleWriteIpInfo();
+                    break;
+                case "ip":
+                    await ConsoleWriteIpInfo();    
+                    break;
+                case "config":
+                    ConsoleWriteConfigInfo();
+                    await ConsoleAwaitExitAsync();
+                    break;
+                default:
+                    await ConsoleAwaitExitAsync();
+                    break;
+            }
+        }
+
+        private async Task ConsoleWriteIpInfo()
+        {
+            ConsoleHelper.WriteInfo($"正在获取当前公网IP，请稍等...");
+            var currentPubicIp = (await NetworkHelper.GetPublicNetworkIp()).Replace("\n", "");
+            ConsoleHelper.WriteInfo($"当前的公网IP：{currentPubicIp}");
+            await ConsoleAwaitExitAsync();
+        }
+
+        private void ConsoleWriteConfigInfo()
+        {
             var intervalSec = (int)TimeSpan.FromSeconds(Interval).TotalSeconds;
             StringBuilder iniConfMsg = new StringBuilder();
-            iniConfMsg.AppendLine($"\t初始化配置成功，当前配置内容如下：");
+            iniConfMsg.AppendLine($"\t当前配置内容如下：");
             iniConfMsg.AppendLine($"\t监听的时间周期：{intervalSec} 秒");
             iniConfMsg.AppendLine($"\tAccessId：{ConfigurationHelper.Configuration.AccessId}");
             iniConfMsg.AppendLine($"\t监听的主域名：{ConfigurationHelper.Configuration.MainDomain}");
@@ -59,6 +96,19 @@ namespace AliCloudDynamicDNS
             }
 
             ConsoleHelper.WriteInfo(iniConfMsg.ToString());
+        }
+
+        private async Task InitializeConfigurationAsync()
+        {
+            var filePath = FilePath ?? Path.Combine(Environment.CurrentDirectory,"settings.json");
+            if (!File.Exists(filePath))
+            {
+                ConsoleHelper.WriteError("当前目录不存在配置文件，或者指定的配置文件路径不正确。");
+                Environment.Exit(-1);
+            }
+
+            await ConfigurationHelper.ReadConfigFileAsync(filePath);
+            ConsoleWriteConfigInfo();
         }
 
         private void InitializeStrongTimer()
