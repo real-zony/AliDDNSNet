@@ -50,7 +50,7 @@ namespace AliCloudDynamicDNS.ApiRequest
             {
                 var result = await _httpClient.SendAsync(request);
                 string requestContent = await result.Content.ReadAsStringAsync();
-                if(requestContent == null)
+                if(string.IsNullOrEmpty(requestContent))
                 {
                     AliCloudDynamicDNS.Utility.ConsoleHelper.WriteError($"远程请求出错：{request.ToString()}");
                 }
