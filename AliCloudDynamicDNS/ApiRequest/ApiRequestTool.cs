@@ -49,7 +49,12 @@ namespace AliCloudDynamicDNS.ApiRequest
             using (var request = new HttpRequestMessage(HttpMethod.Get, requestUrl))
             {
                 var result = await _httpClient.SendAsync(request);
-                return await result.Content.ReadAsStringAsync();
+                string requestContent = await result.Content.ReadAsStringAsync();
+                if(string.IsNullOrEmpty(requestContent))
+                {
+                    AliCloudDynamicDNS.Utility.ConsoleHelper.WriteError($"远程请求出错：{request.ToString()}");
+                }
+                return requestContent;
             }
         }
     }

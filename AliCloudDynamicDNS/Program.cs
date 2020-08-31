@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using AliCloudDynamicDNS.ApiRequest;
 using AliCloudDynamicDNS.Configuration;
@@ -30,7 +31,76 @@ namespace AliCloudDynamicDNS
             await InitializeConfigurationAsync();
             InitializeStrongTimer();
             
-            Console.ReadLine();
+            await ConsoleAwaitExitAsync();
+        }
+
+        private async Task ConsoleAwaitExitAsync()
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("");
+            Console.WriteLine("==================== 可执行命令（不区分大小写） ====================");
+            Console.WriteLine("输入“cls”清屏");
+            Console.WriteLine("输入“ip”查看当前公网IP");
+            Console.WriteLine("输入“config”查看当前配置信息");
+            Console.WriteLine("输入“update”强制更新IP解析");
+            Console.WriteLine("输入“exit”退出程序");
+            Console.WriteLine("==================== 可执行命令（不区分大小写） ====================");
+            Console.WriteLine("请输入：");
+            Console.ForegroundColor = ConsoleColor.Gray;
+
+            string command = Console.ReadLine().ToLower();
+            Console.WriteLine("");
+            switch (command)
+            {
+                case "exit":
+                    break;
+                case "cls":
+                    Console.Clear();
+                    ConsoleWriteConfigInfo();
+                    await ConsoleWriteIpInfo();
+                    break;
+                case "ip":
+                    await ConsoleWriteIpInfo();    
+                    break;
+                case "update":
+                    await UpdateRecord(true);
+                    await ConsoleAwaitExitAsync();
+                    break;
+                case "config":
+                    ConsoleWriteConfigInfo();
+                    await ConsoleAwaitExitAsync();
+                    break;
+                default:
+                    await ConsoleAwaitExitAsync();
+                    break;
+            }
+        }
+
+        private async Task ConsoleWriteIpInfo()
+        {
+            ConsoleHelper.WriteInfo($"正在获取当前公网IP，请稍等...");
+            var currentPubicIp = (await NetworkHelper.GetPublicNetworkIp()).Replace("\n", "");
+            ConsoleHelper.WriteInfo($"当前的公网IP：{currentPubicIp}");
+            await ConsoleAwaitExitAsync();
+        }
+
+        private void ConsoleWriteConfigInfo()
+        {
+            var intervalSec = (int)TimeSpan.FromSeconds(Interval).TotalSeconds;
+            StringBuilder iniConfMsg = new StringBuilder();
+            iniConfMsg.AppendLine($"\t当前配置内容如下：");
+            iniConfMsg.AppendLine($"\t监听的时间周期：{intervalSec} 秒");
+            iniConfMsg.AppendLine($"\tAccessId：{ConfigurationHelper.Configuration.AccessId}");
+            iniConfMsg.AppendLine($"\t监听的主域名：{ConfigurationHelper.Configuration.MainDomain}");
+            iniConfMsg.AppendLine($"\t监听的子域名：");
+            int subDomainSerialNumber = 0;
+            foreach (var subDomain in ConfigurationHelper.Configuration.SubDomains)
+            {
+                subDomainSerialNumber++;
+                iniConfMsg.AppendLine($"\t\t子域名地址{subDomainSerialNumber}：{subDomain.SubDomain}.{ConfigurationHelper.Configuration.MainDomain} - 记录类型：{subDomain.Type}");
+            }
+
+            ConsoleHelper.WriteInfo(iniConfMsg.ToString());
         }
 
         private async Task InitializeConfigurationAsync()
@@ -43,13 +113,15 @@ namespace AliCloudDynamicDNS
             }
 
             await ConfigurationHelper.ReadConfigFileAsync(filePath);
+            ConsoleWriteConfigInfo();
         }
 
         private void InitializeStrongTimer()
         {
-            if (Interval < 60 && Interval != 0)
+            int minInterval = 30;
+            if (Interval < minInterval && Interval != 0)
             {
-                ConsoleHelper.WriteError($"指定的时间周期必须大于或等于 60 秒，用户指定的值：{Interval}");
+                ConsoleHelper.WriteError($"指定的时间周期必须大于或等于 {minInterval} 秒，用户指定的值：{Interval}");
                 Environment.Exit(-1);
             }
 
@@ -64,31 +136,7 @@ namespace AliCloudDynamicDNS
             {
                 AsyncContext.Run(async () =>
                 {
-                    var records = (await _apiRequestTool.GetRecordsWithMainDomainAsync(ConfigurationHelper.Configuration.MainDomain))
-                        .SelectTokens($"$.DomainRecords.Record[*]")
-                        .Select(x => new AliCloudRecordModel
-                        {
-                            RecordId = x.SelectToken("$.RecordId")?.Value<string>(),
-                            SubName = x.SelectToken("$.RR")?.Value<string>(),
-                            Value = x.SelectToken("$.Value")?.Value<string>()
-                        })
-                        .ToList();
-
-                    var currentPubicIp = (await NetworkHelper.GetPublicNetworkIp()).Replace("\n", "");
-
-                    foreach (var subDomain in ConfigurationHelper.Configuration.SubDomains)
-                    {
-                        var record = records.FirstOrDefault(x => x.SubName == subDomain.SubDomain);
-                        if (record == null) continue;
-                        if (record.Value == currentPubicIp) continue;
-
-                        // 更新指定的子域名 IP。
-                        var result = (await _apiRequestTool.UpdateRecordAsync(record.RecordId, currentPubicIp, subDomain)).SelectToken("$.RecordId").Value<string>();
-                        if (result == null || result != record.RecordId)
-                        {
-                            ConsoleHelper.WriteError($"记录 {record.SubName} 更新失败...");
-                        }
-                    }
+                    await UpdateRecord();
                 });
             };
 
@@ -100,6 +148,57 @@ namespace AliCloudDynamicDNS
                 _strongTimer.Stop();
                 ConsoleHelper.WriteMessage("程序执行完成...");
                 Environment.Exit(0);
+            }
+        }
+
+        private async Task UpdateRecord(bool isWriteNoUpdateInfo = false)
+        {
+            var records = (await _apiRequestTool.GetRecordsWithMainDomainAsync(ConfigurationHelper.Configuration.MainDomain))
+                .SelectTokens($"$.DomainRecords.Record[*]")
+                .Select(x => new AliCloudRecordModel
+                {
+                    RecordId = x.SelectToken("$.RecordId")?.Value<string>(),
+                    SubName = x.SelectToken("$.RR")?.Value<string>(),
+                    Value = x.SelectToken("$.Value")?.Value<string>()
+                })
+                .ToList();
+            ConsoleHelper.WriteInfo($"远程API获取的域名[{ConfigurationHelper.Configuration.MainDomain}]的解析记录有：{records.Count}条");
+            var currentPubicIp = (await NetworkHelper.GetPublicNetworkIp()).Replace("\n", "");
+            if (!string.IsNullOrEmpty(currentPubicIp))
+            {
+                ConsoleHelper.WriteInfo($"已获取本机公网IP：[{currentPubicIp}]");
+                foreach (var subDomain in ConfigurationHelper.Configuration.SubDomains)
+                {
+                    var record = records.FirstOrDefault(x => x.SubName == subDomain.SubDomain);
+                    if (record == null)
+                    {
+                        ConsoleHelper.WriteError($" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 在远程API获取的域名中未找到，无法进行更新IP操作...");
+                        continue;
+                    }
+                    if (record.Value == currentPubicIp)
+                    {
+                        if (isWriteNoUpdateInfo)
+                        {
+                            ConsoleHelper.WriteInfo($"{record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 记录的IP与当前获取的公网IP一致，无需更新");
+                        }
+                        continue;
+                    }
+
+                    // 更新指定的子域名 IP。
+                    var result = (await _apiRequestTool.UpdateRecordAsync(record.RecordId, currentPubicIp, subDomain)).SelectToken("$.RecordId").Value<string>();
+                    if (result == null || result != record.RecordId)
+                    {
+                        ConsoleHelper.WriteError($" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 更新失败...");
+                    }
+                    else
+                    {
+                        ConsoleHelper.WriteInfo($" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 更新成功，IP：{record.Value} => {currentPubicIp}");
+                    }
+                }
+            }
+            else
+            {
+                ConsoleHelper.WriteError($"获取本机公网IP失败");
             }
         }
 

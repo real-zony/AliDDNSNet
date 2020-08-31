@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "AliCloudDynamicDNS": {
+      "commandName": "Project",
+      "commandLineArgs": "-f ./settings.json -i 30"
+    }
+  }
+}

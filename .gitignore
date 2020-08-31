@@ -1,4 +1,4 @@
-﻿################################################################################
+################################################################################
 # 此 .gitignore 文件已由 Microsoft(R) Visual Studio 自动创建。
 ################################################################################
 
@@ -13,3 +13,6 @@
 /AliCloudDynamicDNS/bin/
 /AliCloudDynamicDNS.Test/bin/
 /.vs
+AliCloudDynamicDNS/settings.json
+AliCloudDynamicDNS/release/AliCloudDynamicDNS.exe
+AliCloudDynamicDNS/release/AliCloudDynamicDNS.pdb
