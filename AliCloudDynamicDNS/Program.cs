@@ -48,6 +48,7 @@ namespace AliCloudDynamicDNS
             StringBuilder iniConfMsg = new StringBuilder();
             iniConfMsg.AppendLine($"\t初始化配置成功，当前配置内容如下：");
             iniConfMsg.AppendLine($"\t监听的时间周期：{intervalSec} 秒");
+            iniConfMsg.AppendLine($"\tAccessId：{ConfigurationHelper.Configuration.AccessId}");
             iniConfMsg.AppendLine($"\t监听的主域名：{ConfigurationHelper.Configuration.MainDomain}");
             iniConfMsg.AppendLine($"\t监听的子域名：");
             int subDomainSerialNumber = 0;
