@@ -1,6 +1,8 @@
-﻿using System.Net.Http;
+﻿using System;
+using System.Net.Http;
 using System.Threading.Tasks;
 using AliCloudDynamicDNS.Configuration;
+using AliCloudDynamicDNS.Utility;
 using Newtonsoft.Json.Linq;
 
 namespace AliCloudDynamicDNS.ApiRequest
@@ -45,16 +47,23 @@ namespace AliCloudDynamicDNS.ApiRequest
         private async Task<string> RequestAsync(ApiRequestParameters parameters)
         {
             var requestUrl = $"http://alidns.aliyuncs.com/?{parameters.GenerateSortedQueryString()}";
-
-            using (var request = new HttpRequestMessage(HttpMethod.Get, requestUrl))
+            try
             {
-                var result = await _httpClient.SendAsync(request);
-                string requestContent = await result.Content.ReadAsStringAsync();
-                if(string.IsNullOrEmpty(requestContent))
+                using (var request = new HttpRequestMessage(HttpMethod.Get, requestUrl))
                 {
-                    AliCloudDynamicDNS.Utility.ConsoleHelper.WriteError($"远程请求出错：{request.ToString()}");
+                    var result = await _httpClient.SendAsync(request);
+                    string requestContent = await result.Content.ReadAsStringAsync();
+                    if (string.IsNullOrEmpty(requestContent))
+                    {
+                        ConsoleHelper.WriteError($"远程请求出错：{request.ToString()}");
+                    }
+                    return requestContent;
                 }
-                return requestContent;
+            }
+            catch(Exception ex)
+            {
+                ConsoleHelper.WriteError($"阿里云API请求出错，错误原因为：\r\n{ex.Message}");
+                return "";
             }
         }
     }
