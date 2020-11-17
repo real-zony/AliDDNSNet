@@ -153,52 +153,59 @@ namespace AliCloudDynamicDNS
 
         private async Task UpdateRecord(bool isWriteNoUpdateInfo = false)
         {
-            var records = (await _apiRequestTool.GetRecordsWithMainDomainAsync(ConfigurationHelper.Configuration.MainDomain))
-                .SelectTokens($"$.DomainRecords.Record[*]")
-                .Select(x => new AliCloudRecordModel
-                {
-                    RecordId = x.SelectToken("$.RecordId")?.Value<string>(),
-                    SubName = x.SelectToken("$.RR")?.Value<string>(),
-                    Value = x.SelectToken("$.Value")?.Value<string>()
-                })
-                .ToList();
-            ConsoleHelper.WriteInfo($"远程API获取的域名[{ConfigurationHelper.Configuration.MainDomain}]的解析记录有：{records.Count}条");
-            var currentPubicIp = (await NetworkHelper.GetPublicNetworkIp()).Replace("\n", "");
-            if (!string.IsNullOrEmpty(currentPubicIp))
+            try
             {
-                ConsoleHelper.WriteInfo($"已获取本机公网IP：[{currentPubicIp}]");
-                foreach (var subDomain in ConfigurationHelper.Configuration.SubDomains)
+                var records = (await _apiRequestTool.GetRecordsWithMainDomainAsync(ConfigurationHelper.Configuration.MainDomain))
+                    .SelectTokens($"$.DomainRecords.Record[*]")
+                    .Select(x => new AliCloudRecordModel
+                    {
+                        RecordId = x.SelectToken("$.RecordId")?.Value<string>(),
+                        SubName = x.SelectToken("$.RR")?.Value<string>(),
+                        Value = x.SelectToken("$.Value")?.Value<string>()
+                    })
+                    .ToList();
+                ConsoleHelper.WriteInfo($"远程API获取的域名[{ConfigurationHelper.Configuration.MainDomain}]的解析记录有：{records.Count}条");
+                var currentPubicIp = (await NetworkHelper.GetPublicNetworkIp()).Replace("\n", "");
+                if (!string.IsNullOrEmpty(currentPubicIp))
                 {
-                    var record = records.FirstOrDefault(x => x.SubName == subDomain.SubDomain);
-                    if (record == null)
+                    ConsoleHelper.WriteInfo($"已获取本机公网IP：[{currentPubicIp}]");
+                    foreach (var subDomain in ConfigurationHelper.Configuration.SubDomains)
                     {
-                        ConsoleHelper.WriteError($" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 在远程API获取的域名中未找到，无法进行更新IP操作...");
-                        continue;
-                    }
-                    if (record.Value == currentPubicIp)
-                    {
-                        if (isWriteNoUpdateInfo)
+                        var record = records.FirstOrDefault(x => x.SubName == subDomain.SubDomain);
+                        if (record == null)
                         {
-                            ConsoleHelper.WriteInfo($"{record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 记录的IP与当前获取的公网IP一致，无需更新");
+                            ConsoleHelper.WriteError($" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 在远程API获取的域名中未找到，无法进行更新IP操作...");
+                            continue;
                         }
-                        continue;
-                    }
+                        if (record.Value == currentPubicIp)
+                        {
+                            if (isWriteNoUpdateInfo)
+                            {
+                                ConsoleHelper.WriteInfo($"{record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 记录的IP与当前获取的公网IP一致，无需更新");
+                            }
+                            continue;
+                        }
 
-                    // 更新指定的子域名 IP。
-                    var result = (await _apiRequestTool.UpdateRecordAsync(record.RecordId, currentPubicIp, subDomain)).SelectToken("$.RecordId").Value<string>();
-                    if (result == null || result != record.RecordId)
-                    {
-                        ConsoleHelper.WriteError($" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 更新失败...");
-                    }
-                    else
-                    {
-                        ConsoleHelper.WriteInfo($" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 更新成功，IP：{record.Value} => {currentPubicIp}");
+                        // 更新指定的子域名 IP。
+                        var result = (await _apiRequestTool.UpdateRecordAsync(record.RecordId, currentPubicIp, subDomain)).SelectToken("$.RecordId").Value<string>();
+                        if (result == null || result != record.RecordId)
+                        {
+                            ConsoleHelper.WriteError($" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 更新失败...");
+                        }
+                        else
+                        {
+                            ConsoleHelper.WriteInfo($" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 更新成功，IP：{record.Value} => {currentPubicIp}");
+                        }
                     }
                 }
+                else
+                {
+                    ConsoleHelper.WriteError($"获取本机公网IP失败");
+                }
             }
-            else
+            catch(Exception ex)
             {
-                ConsoleHelper.WriteError($"获取本机公网IP失败");
+                ConsoleHelper.WriteError($"更新API解析出错，错误原因为：\r\n{ex.Message}");
             }
         }
 

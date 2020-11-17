@@ -1,4 +1,5 @@
-﻿using System.Net.Http;
+﻿using System;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace AliCloudDynamicDNS.Utility
@@ -7,15 +8,24 @@ namespace AliCloudDynamicDNS.Utility
     {
         public static async Task<string> GetPublicNetworkIp()
         {
-            using (var client = new HttpClient())
+            try
             {
-                using (var request = new HttpRequestMessage(HttpMethod.Get, "http://members.3322.org/dyndns/getip"))
+                using (var client = new HttpClient())
                 {
-                    using (var response = await client.SendAsync(request))
+                    using (var request = new HttpRequestMessage(HttpMethod.Get, "http://members.3322.org/dyndns/getip"))
                     {
-                        return await response.Content.ReadAsStringAsync();
+                        using (var response = await client.SendAsync(request))
+                        {
+                            return await response.Content.ReadAsStringAsync();
+                        }
                     }
                 }
+            }
+            catch(Exception ex)
+            {
+                string msg = $"获取公网IP出错，错误原因为：\r\n{ex.Message}";
+                ConsoleHelper.WriteError(ex.Message);
+                return "";
             }
         }
     }
