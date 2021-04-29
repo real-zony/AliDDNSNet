@@ -3,7 +3,7 @@
 cd ../../AliCloudDynamicDNS || exit
 
 read -r -p "请输入版本号:" Version
-Platforms=('win-x64' 'linux-x64' 'osx-x64')
+Platforms=('win-x64' 'linux-x64' 'osx-x64' 'linux-arm' 'linux-arm64')
 
 if ! [ -d './TempFiles' ];
 then
