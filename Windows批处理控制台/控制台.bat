@@ -1,4 +1,4 @@
-@echo off&color e&Title °¢ÀïÔÆ¶¯Ì¬DNS-API ÃüÁîĞĞ¿ØÖÆÌ¨
+@echo off&color e&Title é˜¿é‡Œäº‘åŠ¨æ€DNS-API å‘½ä»¤è¡Œæ§åˆ¶å°
 
 cls
 
@@ -6,25 +6,25 @@ cls
 
 echo   **********************************
 echo.
-echo          °¢ÀïÔÆ¶¯Ì¬DNS-API ÃüÁîĞĞ¿ØÖÆÌ¨
+echo          é˜¿é‡Œäº‘åŠ¨æ€DNS-API å‘½ä»¤è¡Œæ§åˆ¶å°
 echo.
 echo   **********************************
 echo. & echo   Script: %0% & echo.
-echo ÇëÊäÈëÃüÁî£º
+echo è¯·è¾“å…¥å‘½ä»¤ï¼š
 echo.
-echo     list         ²éÑ¯ °¢ÀïÔÆ¶¯Ì¬DNS-API ·şÎñ
-echo     config       ´ò¿ª °¢ÀïÔÆ¶¯Ì¬DNS-API ÅäÖÃÎÄ¼ş
+echo     list         æŸ¥è¯¢ é˜¿é‡Œäº‘åŠ¨æ€DNS-API æœåŠ¡
+echo     config       æ‰“å¼€ é˜¿é‡Œäº‘åŠ¨æ€DNS-API é…ç½®æ–‡ä»¶
 echo.
-echo     start        Æô¶¯ °¢ÀïÔÆ¶¯Ì¬DNS-API ½ø³Ì
+echo     start        å¯åŠ¨ é˜¿é‡Œäº‘åŠ¨æ€DNS-API è¿›ç¨‹
 echo.
-echo     restart        ÖØÆô °¢ÀïÔÆ¶¯Ì¬DNS-API ½ø³Ì
+echo     restart        é‡å¯ é˜¿é‡Œäº‘åŠ¨æ€DNS-API è¿›ç¨‹
 echo.
-echo     kill        É±ËÀ °¢ÀïÔÆ¶¯Ì¬DNS-API ½ø³Ì
+echo     kill        æ€æ­» é˜¿é‡Œäº‘åŠ¨æ€DNS-API è¿›ç¨‹
 echo.
-echo     exit         ÍË³ö¿ØÖÆÌ¨
-echo     cmd          Æô¶¯ cmd
+echo     exit         é€€å‡ºæ§åˆ¶å°
+echo     cmd          å¯åŠ¨ cmd
 
-echo.&echo.&set /p cmd=ÇëÊäÈë£º
+echo.&echo.&set /p cmd=è¯·è¾“å…¥ï¼š
 
 if  "%cmd%"=="list"    goto List
 if  "%cmd%"=="config"     goto Config
@@ -43,14 +43,14 @@ exit
 :Kill
 cls
 echo.
-echo     ³¢ÊÔÉ±ËÀ °¢ÀïÔÆ¶¯Ì¬DNS-API ½ø³Ì
+echo     å°è¯•æ€æ­» é˜¿é‡Œäº‘åŠ¨æ€DNS-API è¿›ç¨‹
 echo.
 echo.&echo.
 taskkill /F /IM AliCloudDynamicDNS.exe* 
 set cmd=
-echo.&echo     Ö´ĞĞÍê³É
+echo.&echo     æ‰§è¡Œå®Œæˆ
 echo.&echo.
-echo.&echo.&set /p waitinput=°´Enter¼ü·µ»Ø¹¦ÄÜ²Ëµ¥
+echo.&echo.&set /p waitinput=æŒ‰Enteré”®è¿”å›åŠŸèƒ½èœå•
 cls
 goto Begin
 
@@ -58,17 +58,17 @@ goto Begin
 :Start
 cls
 echo.
-echo     ³¢ÊÔÆô¶¯ °¢ÀïÔÆ¶¯Ì¬DNS-API ½ø³Ì
+echo     å°è¯•å¯åŠ¨ é˜¿é‡Œäº‘åŠ¨æ€DNS-API è¿›ç¨‹
 echo.
-echo.&echo.&set /p interval=ÇëÊäÈë¼àÌıµÄÊ±¼äÖÜÆÚ(µ¥Î»£ºÃë£¬´óÓÚµÈÓÚ30)£º
+echo.&echo.&set /p interval=è¯·è¾“å…¥ç›‘å¬çš„æ—¶é—´å‘¨æœŸ(å•ä½ï¼šç§’ï¼Œå¤§äºç­‰äº30)ï¼š
 echo.&echo.
 
-start cmd.exe "/k title °¢ÀïÔÆ¶¯Ì¬DNS-API && AliCloudDynamicDNS.exe -f ./settings.json -i %interval%"
+start cmd.exe "/k title é˜¿é‡Œäº‘åŠ¨æ€DNS-API && AliCloudDynamicDNS.exe -f ./settings.json -i %interval%"
 
 set cmd=
-echo.&echo     Ö´ĞĞÍê³É
+echo.&echo     æ‰§è¡Œå®Œæˆ
 echo.&echo.
-echo.&echo.&set /p waitinput=°´Enter¼ü·µ»Ø¹¦ÄÜ²Ëµ¥
+echo.&echo.&set /p waitinput=æŒ‰Enteré”®è¿”å›åŠŸèƒ½èœå•
 cls
 goto Begin
 
@@ -76,22 +76,22 @@ goto Begin
 :ReStart
 cls
 echo.
-echo     ³¢ÊÔÉ±ËÀ °¢ÀïÔÆ¶¯Ì¬DNS-API ½ø³Ì
+echo     å°è¯•æ€æ­» é˜¿é‡Œäº‘åŠ¨æ€DNS-API è¿›ç¨‹
 echo.
 echo.&echo.
 taskkill /F /IM AliCloudDynamicDNS.exe* 
 echo.
-echo     ³¢ÊÔÆô¶¯ °¢ÀïÔÆ¶¯Ì¬DNS-API ½ø³Ì
+echo     å°è¯•å¯åŠ¨ é˜¿é‡Œäº‘åŠ¨æ€DNS-API è¿›ç¨‹
 echo.
-echo.&echo.&set /p interval=ÇëÊäÈë¼àÌıµÄÊ±¼äÖÜÆÚ(µ¥Î»£ºÃë£¬´óÓÚµÈÓÚ30)£º
+echo.&echo.&set /p interval=è¯·è¾“å…¥ç›‘å¬çš„æ—¶é—´å‘¨æœŸ(å•ä½ï¼šç§’ï¼Œå¤§äºç­‰äº30)ï¼š
 echo.&echo.
 
-start cmd.exe "/k AliCloudDynamicDNS.exe -f ./settings.json -i %interval% && title °¢ÀïÔÆ¶¯Ì¬DNS-API
+start cmd.exe "/k AliCloudDynamicDNS.exe -f ./settings.json -i %interval% && title é˜¿é‡Œäº‘åŠ¨æ€DNS-API
 
 set cmd=
-echo.&echo     Ö´ĞĞÍê³É
+echo.&echo     æ‰§è¡Œå®Œæˆ
 echo.&echo.
-echo.&echo.&set /p waitinput=°´Enter¼ü·µ»Ø¹¦ÄÜ²Ëµ¥
+echo.&echo.&set /p waitinput=æŒ‰Enteré”®è¿”å›åŠŸèƒ½èœå•
 cls
 goto Begin
 
@@ -99,13 +99,13 @@ goto Begin
 :List
 cls
 echo.
-echo     ²éÑ¯ °¢ÀïÔÆ¶¯Ì¬DNS-API ·şÎñ
+echo     æŸ¥è¯¢ é˜¿é‡Œäº‘åŠ¨æ€DNS-API æœåŠ¡
 echo.
 
 tasklist /fi "imagename eq AliCloudDynamicDNS.exe"
 set cmd=
 echo.&echo.
-echo.&echo.&set /p waitinput=°´Enter¼ü·µ»Ø¹¦ÄÜ²Ëµ¥
+echo.&echo.&set /p waitinput=æŒ‰Enteré”®è¿”å›åŠŸèƒ½èœå•
 cls
 goto Begin
 
@@ -118,7 +118,7 @@ goto Begin
 :Config
 cls
 echo.
-echo     ´ò¿ª °¢ÀïÔÆ¶¯Ì¬DNS-API ÅäÖÃÎÄ¼ş
+echo     æ‰“å¼€ é˜¿é‡Œäº‘åŠ¨æ€DNS-API é…ç½®æ–‡ä»¶
 echo.
 
 start notepad %cd%\settings.json
