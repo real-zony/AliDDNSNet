@@ -16,3 +16,5 @@
 AliCloudDynamicDNS/settings.json
 AliCloudDynamicDNS/release/AliCloudDynamicDNS.exe
 AliCloudDynamicDNS/release/AliCloudDynamicDNS.pdb
+
+/AliCloudDynamicDNS/TempFiles
