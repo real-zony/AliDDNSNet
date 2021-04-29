@@ -1,2 +1,0 @@
-1.在当前目录 ,地址栏中输入 cmd,回车
-2.在cmd.exe控制台中输入 dotnet publish -o release -c Release -r win-x64 /p:PublishSingleFile=true ，回车，进行二进制编译

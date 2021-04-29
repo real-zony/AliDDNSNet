@@ -4,7 +4,7 @@ AliCloudDynamicDNS 是基于 .NET Core 开发的动态 DNS 解析工具，借助
 
 ## 1.使用说明
 
-> 使用本工具的时候，请详细阅读使用说明。
+使用本工具的时候，请详细阅读使用说明。
 
 ### 1.1 配置说明
 
@@ -86,6 +86,13 @@ AliCloudDynamicDNS 是基于 .NET Core 开发的动态 DNS 解析工具，借助
 
 ## 2.下载地址
 
-程序打包了 Linux-x64 与 Linux-arm 环境的二进制可执行文件，你可以直接下载对应的压缩包解压到你的路由器或者 NAS 里面进行运行。
+程序打包了 Linux_x64、Linux_arm64、Windows_x64 的二进制可执行文件，你可以直接下载对应的压缩包解压到你的路由器或者 NAS 里面进行运行。
 
 **[下载地址在这儿](https://github.com/GameBelial/AliDDNSNet/releases)**
+
+## 3. 编译方法
+
+### 3.1 Windows 下的编译方法
+
+1. 在当前目录的地址栏中输入 `cmd` 或者 `powershell`，按下回车。
+2. 在 *cmd.exe* 控制台中输入 `dotnet publish -o release -c Release -r win-x64 /p:PublishSingleFile=true` ，回车，进行二进制编译。
