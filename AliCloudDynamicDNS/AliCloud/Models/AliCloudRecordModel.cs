@@ -1,4 +1,4 @@
-﻿namespace AliCloudDynamicDNS.Models
+﻿namespace AliCloudDynamicDNS.AliCloud.Models
 {
     public class AliCloudRecordModel
     {

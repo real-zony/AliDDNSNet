@@ -3,9 +3,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using AliCloudDynamicDNS.ApiRequest;
+using AliCloudDynamicDNS.AliCloud.ApiRequest;
+using AliCloudDynamicDNS.AliCloud.Models;
 using AliCloudDynamicDNS.Configuration;
-using AliCloudDynamicDNS.Models;
 using AliCloudDynamicDNS.Threading;
 using AliCloudDynamicDNS.Utility;
 using McMaster.Extensions.CommandLineUtils;
@@ -30,7 +30,7 @@ namespace AliCloudDynamicDNS
         {
             await InitializeConfigurationAsync();
             InitializeStrongTimer();
-            
+
             await ConsoleAwaitExitAsync();
         }
 
@@ -60,7 +60,7 @@ namespace AliCloudDynamicDNS
                     await ConsoleWriteIpInfo();
                     break;
                 case "ip":
-                    await ConsoleWriteIpInfo();    
+                    await ConsoleWriteIpInfo();
                     break;
                 case "update":
                     await UpdateRecord(true);
@@ -86,7 +86,7 @@ namespace AliCloudDynamicDNS
 
         private void ConsoleWriteConfigInfo()
         {
-            var intervalSec = (int)TimeSpan.FromSeconds(Interval).TotalSeconds;
+            var intervalSec = (int) TimeSpan.FromSeconds(Interval).TotalSeconds;
             StringBuilder iniConfMsg = new StringBuilder();
             iniConfMsg.AppendLine($"\t当前配置内容如下：");
             iniConfMsg.AppendLine($"\t监听的时间周期：{intervalSec} 秒");
@@ -105,7 +105,7 @@ namespace AliCloudDynamicDNS
 
         private async Task InitializeConfigurationAsync()
         {
-            var filePath = FilePath ?? Path.Combine(Environment.CurrentDirectory,"settings.json");
+            var filePath = FilePath ?? Path.Combine(Environment.CurrentDirectory, "settings.json");
             if (!File.Exists(filePath))
             {
                 ConsoleHelper.WriteError("当前目录不存在配置文件，或者指定的配置文件路径不正确。");
@@ -132,13 +132,7 @@ namespace AliCloudDynamicDNS
                 RunOnStart = true
             };
 
-            _strongTimer.Elapsed += (sender, args) =>
-            {
-                AsyncContext.Run(async () =>
-                {
-                    await UpdateRecord();
-                });
-            };
+            _strongTimer.Elapsed += (sender, args) => { AsyncContext.Run(async () => { await UpdateRecord(); }); };
 
             _strongTimer.Start();
             ConsoleHelper.WriteMessage("程序已经开始运行...");
@@ -177,12 +171,14 @@ namespace AliCloudDynamicDNS
                             ConsoleHelper.WriteError($" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 在远程API获取的域名中未找到，无法进行更新IP操作...");
                             continue;
                         }
+
                         if (record.Value == currentPubicIp)
                         {
                             if (isWriteNoUpdateInfo)
                             {
                                 ConsoleHelper.WriteInfo($"{record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 记录的IP与当前获取的公网IP一致，无需更新");
                             }
+
                             continue;
                         }
 
@@ -203,7 +199,7 @@ namespace AliCloudDynamicDNS
                     ConsoleHelper.WriteError($"获取本机公网IP失败");
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 ConsoleHelper.WriteError($"更新API解析出错，错误原因为：\r\n{ex.Message}");
             }

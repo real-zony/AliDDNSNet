@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using AliCloudDynamicDNS.Configuration;
 
-namespace AliCloudDynamicDNS.ApiRequest
+namespace AliCloudDynamicDNS.AliCloud.ApiRequest
 {
     public class ApiRequestParameters
     {

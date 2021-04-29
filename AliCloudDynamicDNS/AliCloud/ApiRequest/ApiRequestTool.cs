@@ -5,7 +5,7 @@ using AliCloudDynamicDNS.Configuration;
 using AliCloudDynamicDNS.Utility;
 using Newtonsoft.Json.Linq;
 
-namespace AliCloudDynamicDNS.ApiRequest
+namespace AliCloudDynamicDNS.AliCloud.ApiRequest
 {
     public class ApiRequestTool
     {
