@@ -12,7 +12,7 @@ namespace AliCloudDynamicDNS.Utility
             {
                 using (var client = new HttpClient())
                 {
-                    using (var request = new HttpRequestMessage(HttpMethod.Get, "http://members.3322.org/dyndns/getip"))
+                    using (var request = new HttpRequestMessage(HttpMethod.Get, "https://api.ipify.org/"))
                     {
                         using (var response = await client.SendAsync(request))
                         {
