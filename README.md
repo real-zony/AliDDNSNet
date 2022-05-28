@@ -39,7 +39,7 @@ AliCloudDynamicDNS 是基于 .NET Core 开发的动态 DNS 解析工具，借助
 
 其中 ```Access Id``` 与 ```Access Key``` 可以登录阿里云之后在右上角可以得到。
 
-### 1.2 使用说明
+### 1.2 命令参数说明
 
 在运行程序的时候，请建立一个新的 ```settings.json``` 文件，在里面填入配置内容，然后执行以下命令：
 
@@ -70,13 +70,44 @@ AliCloudDynamicDNS 是基于 .NET Core 开发的动态 DNS 解析工具，借助
 >
 > **当你通过 -i 指定了周期之后，请在最末尾使用 & 符号，使应用程序在后台运行。使用群晖的同学，就不要指定 -i 参数了。**
 
-### 1.3 群晖 NAS 使用说明
+## 2. 如何安装
 
-群晖使用本工具的话推荐下载 [Release](https://github.com/GameBelial/AliDDNSNet/releases) 页面的 Linux 版本压缩包，将其通过 WinSCP 传输到群晖 NAS 上面，然后解压之后即可。
+### 2.1 基于 Docker 运行
 
-例如我这里将其解压到了 ```/var/services/homes/myzony/newDns/``` 这个目录之下，同时我们也将建立一个新的 `settings.json` 文件，并按照下方配置说明进行设置。
+本程序已经打包了 x64 的 Linux Docker 镜像，基于 X86 的机器可以直接执行以下命令拉取并快速执行命令。
 
-最后我们来到群晖的 DSM 管理面，打开 **控制面板 -> 任务计划**，添加一个新的任务，例如下图：
+```
+docker run -d -ti -v <你的配置文件路径(完整)>:/app/settings.json --name=aliyun-ddns myzony/ali-cloud-dynamic-dns:0.0.4
+```
+
+下面是一个 Docker-Compose 的示例:
+
+*docker-compose.yaml*
+
+```yaml
+version: '3'
+services:
+	ddns:
+		container_name: aliyun-ddns
+		image: myzony/ali-cloud-dynamic-dns:0.0.4
+		volume:
+			- <你的配置文件路径(完整)>:/app/settings.json
+		restart: always
+```
+
+### 2.2 基于群晖 Docker
+
+TODO
+
+### 2.3 基于任务计划
+
+**以下方法不再建议使用，优先考虑 Docker 模式**
+
+~~群晖使用本工具的话推荐下载 [Release](https://github.com/GameBelial/AliDDNSNet/releases) 页面的 Linux 版本压缩包，将其通过 WinSCP 传输到群晖 NAS 上面，然后解压之后即可。~~
+
+~~例如我这里将其解压到了 ```/var/services/homes/myzony/newDns/``` 这个目录之下，同时我们也将建立一个新的 `settings.json` 文件，并按照下方配置说明进行设置。~~
+
+~~最后我们来到群晖的 DSM 管理面，打开 **控制面板 -> 任务计划**，添加一个新的任务，例如下图：~~
 
 ![群晖设置图1](./READMEPIC/Snipaste_2019-12-12_17-42-28.png)
 
@@ -84,15 +115,8 @@ AliCloudDynamicDNS 是基于 .NET Core 开发的动态 DNS 解析工具，借助
 
 ![](./READMEPIC/Snipaste_2019-12-12_17-46-01.png)
 
-## 2.下载地址
+## 3.下载地址
 
 程序打包了 Linux_x64、Linux_arm64、Windows_x64 的二进制可执行文件，你可以直接下载对应的压缩包解压到你的路由器或者 NAS 里面进行运行。
 
 **[下载地址在这儿](https://github.com/GameBelial/AliDDNSNet/releases)**
-
-## 3. 编译方法
-
-### 3.1 Windows 下的编译方法
-
-1. 在当前目录的地址栏中输入 `cmd` 或者 `powershell`，按下回车。
-2. 在 *cmd.exe* 控制台中输入 `dotnet publish -o release -c Release -r win-x64 /p:PublishSingleFile=true` ，回车，进行二进制编译。
