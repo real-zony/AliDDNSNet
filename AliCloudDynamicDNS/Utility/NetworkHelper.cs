@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Net.Http;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace AliCloudDynamicDNS.Utility
@@ -13,18 +12,11 @@ namespace AliCloudDynamicDNS.Utility
             {
                 using (var client = new HttpClient())
                 {
-                    using (var request = new HttpRequestMessage(HttpMethod.Get, "https://pv.sohu.com/cityjson?ie=utf-8"))
+                    using (var request = new HttpRequestMessage(HttpMethod.Get, "http://182.254.141.185:9990/get-ip"))
                     {
                         using (var response = await client.SendAsync(request))
                         {
-                            if (response.IsSuccessStatusCode)
-                            {
-                                var content = await response.Content.ReadAsStringAsync();
-                                return Regex.Match(content, @"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}").Value;
-                            }
-
-                            ConsoleHelper.WriteError($"获取公网IP出错。错误码：{response.StatusCode}");
-                            return "";
+                            return await response.Content.ReadAsStringAsync();
                         }
                     }
                 }
