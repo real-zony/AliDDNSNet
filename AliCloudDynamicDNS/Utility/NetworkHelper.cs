@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net.Http;
 using System.Threading.Tasks;
+using AliCloudDynamicDNS.Configuration;
 
 namespace AliCloudDynamicDNS.Utility
 {
@@ -12,7 +13,7 @@ namespace AliCloudDynamicDNS.Utility
             {
                 using (var client = new HttpClient())
                 {
-                    using (var request = new HttpRequestMessage(HttpMethod.Get, "http://182.254.141.185:9990/get-ip"))
+                    using (var request = new HttpRequestMessage(HttpMethod.Get, ConfigurationHelper.Configuration.PublicIpServer))
                     {
                         using (var response = await client.SendAsync(request))
                         {

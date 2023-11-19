@@ -60,7 +60,7 @@ namespace AliCloudDynamicDNS.Threading
             }
         }
 
-        private void Callback(object? state)
+        private void Callback(object state)
         {
             lock (_taskTimer)
             {

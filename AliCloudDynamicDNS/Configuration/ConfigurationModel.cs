@@ -20,6 +20,11 @@ namespace AliCloudDynamicDNS.Configuration
         // 主域名。
         public string MainDomain { get; set; }
 
+        /// <summary>
+        /// 公网 IP 获取服务器地址。
+        /// </summary>
+        public string PublicIpServer { get; set; }
+
         // 需要批量变更的子域名记录集合。
         public List<SubDomainRecord> SubDomains { get; set; }
     }

@@ -5,6 +5,8 @@
   "AccessKey": "AccessKey",
   // 主域名。
   "MainDomain": "example.com",
+  // 公网 IP 获取服务器地址。
+  "PublicIpServer": "https://api.myzony.com/get-ip",
   // 需要批量变更的子域名记录集合。
   "SubDomains": [
     {
