@@ -79,7 +79,7 @@ AliCloudDynamicDNS 是基于 .NET Core 开发的动态 DNS 解析工具，借助
 本程序已经打包了 x64 的 Linux Docker 镜像，基于 X86 的机器可以直接执行以下命令拉取并快速执行命令。
 
 ```
-docker run -d -ti -v <你的配置文件路径(完整)>:/app/settings.json --name=aliyun-ddns myzony/ali-cloud-dynamic-dns:0.0.4
+docker run -d -ti -v <你的配置文件路径(完整)>:/app/settings.json --name=aliyun-ddns myzony/ali-cloud-dynamic-dns:latest
 ```
 
 下面是一个 Docker-Compose 的示例:
@@ -91,7 +91,7 @@ version: '3'
 services:
 	ddns:
 		container_name: aliyun-ddns
-		image: myzony/ali-cloud-dynamic-dns:0.0.4
+		image: myzony/ali-cloud-dynamic-dns:latest
 		volume:
 			- <你的配置文件路径(完整)>:/app/settings.json
 		restart: always
