@@ -15,6 +15,6 @@ rm -rf ./TempFiles/*
 for platform in "${Platforms[@]}"
 do
     dotnet publish -r "$platform" -c Release -p:PublishSingleFile=true -p:PublishTrimmed=true --self-contained true /property:PublishWithAspNetCoreTargetManifest=false
-    zip -r -j ./bin/Release/net5.0/"$platform"/publish/AliCloudDynamicDNS_"$platform"_"$Version".zip ./bin/Release/net5.0/"$platform"/publish/*
-    mv ./bin/Release/net5.0/"$platform"/publish/AliCloudDynamicDNS_"$platform"_"$Version".zip ./TempFiles
+    zip -r -j ./bin/Release/net8.0/"$platform"/publish/AliCloudDynamicDNS_"$platform"_"$Version".zip ./bin/Release/net8.0/"$platform"/publish/*
+    mv ./bin/Release/net8.0/"$platform"/publish/AliCloudDynamicDNS_"$platform"_"$Version".zip ./TempFiles
 done
