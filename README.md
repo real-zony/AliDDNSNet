@@ -1,6 +1,6 @@
 ## 0.简要介绍
 
-AliCloudDynamicDNS 是基于 .NET Core 开发的动态 DNS 解析工具，借助于阿里云的 DNS API 来实现域名与动态 IP 的绑定功能。这样你随时就可以通过域名来访问你的设备，而不需要担心 IP 变动的问题。
+AliDDNSNet 是基于 .NET Core 开发的动态 DNS 解析工具，借助于阿里云的 DNS API 来实现域名与动态 IP 的绑定功能。这样你随时就可以通过域名来访问你的设备，而不需要担心 IP 变动的问题。
 
 ## 1.使用说明
 
@@ -43,14 +43,11 @@ AliCloudDynamicDNS 是基于 .NET Core 开发的动态 DNS 解析工具，借助
 
 ### 1.2 命令参数说明
 
-在运行程序的时候，请建立一个新的 ```settings.json``` 文件，在里面填入配置内容，然后执行以下命令：
+在运行程序的时候，请建立一个新的 ```settings.json``` 文件，在里面填入以上配置内容，然后执行以下命令:
 
 ```shell
 ./AliCloudDynamicDNS
 ```
-
-效果图：  
-![1203160-20180722111356778-841949657.png](./READMEPIC/Snipaste_2019-12-12_17-36-21.png)
 
 当然如果你有其他的配置文件也可以通过指定 ```-f``` 参数来制定配置文件路径。例如：
 
@@ -58,29 +55,23 @@ AliCloudDynamicDNS 是基于 .NET Core 开发的动态 DNS 解析工具，借助
 ./AliCloudDynamicDNS -f ./settings.json
 ```
 
-![](./READMEPIC/Snipaste_2019-12-12_17-38-09.png)
-
-如果你需要启动自动周期检测的话，请通过 `-i` 参数指定执行周期，单位是秒。
+如果你需要启动自动周期检测的话，请通过 `-i` 参数指定执行周期，单位是秒。为了防止频繁请求导致 API 接口受限，周期最小值为 `30 秒`，请设置大于 `30` 的数值。
 
 ```shell
 ./AliCloudDynamicDNS -f ./settings.json -i 3600
 ```
 
-![](./READMEPIC/Snipaste_2019-12-12_17-38-53.png)
-
-> **注意：**
->
-> **当你通过 -i 指定了周期之后，请在最末尾使用 & 符号，使应用程序在后台运行。使用群晖的同学，就不要指定 -i 参数了。**
-
 ## 2. 如何安装
 
-### 2.1 基于 Docker 运行
+### 2.1 基于 Docker 直接运行
 
 本程序已经打包了 x64 的 Linux Docker 镜像，基于 X86 的机器可以直接执行以下命令拉取并快速执行命令。
 
 ```
 docker run -d -ti -v <你的配置文件路径(完整)>:/app/settings.json --name=aliyun-ddns myzony/ali-cloud-dynamic-dns:latest
 ```
+
+### 2.2 基于 Docker Compose 运行 (推荐)
 
 下面是一个 Docker-Compose 的示例:
 
@@ -97,28 +88,16 @@ services:
 		restart: always
 ```
 
-### 2.2 基于群晖 Docker
+### 2.3 基于群晖 Docker
 
 TODO
 
-### 2.3 基于任务计划
+### 2.4 基于二进制程序运行
 
-**以下方法不再建议使用，优先考虑 Docker 模式**
-
-~~群晖使用本工具的话推荐下载 [Release](https://github.com/GameBelial/AliDDNSNet/releases) 页面的 Linux 版本压缩包，将其通过 WinSCP 传输到群晖 NAS 上面，然后解压之后即可。~~
-
-~~例如我这里将其解压到了 ```/var/services/homes/myzony/newDns/``` 这个目录之下，同时我们也将建立一个新的 `settings.json` 文件，并按照下方配置说明进行设置。~~
-
-~~最后我们来到群晖的 DSM 管理面，打开 **控制面板 -> 任务计划**，添加一个新的任务，例如下图：~~
-
-![群晖设置图1](./READMEPIC/Snipaste_2019-12-12_17-42-28.png)
-
-![群晖设置图2](./READMEPIC/Snipaste_2019-12-12_17-43-54.png)
-
-![](./READMEPIC/Snipaste_2019-12-12_17-46-01.png)
+TODO
 
 ## 3.下载地址
 
-程序打包了 Linux_x64、Linux_arm64、Windows_x64 的二进制可执行文件，你可以直接下载对应的压缩包解压到你的路由器或者 NAS 里面进行运行。
+本项目打包了常见系统、架构的二进制可执行文件，你可以直接下载对应的压缩包解压到你的路由器或者 NAS 里面进行运行。
 
 **[下载地址在这儿](https://github.com/GameBelial/AliDDNSNet/releases)**
