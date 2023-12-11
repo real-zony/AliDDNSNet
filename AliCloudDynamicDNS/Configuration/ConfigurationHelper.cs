@@ -26,7 +26,7 @@ namespace AliCloudDynamicDNS.Configuration
 
             return Configuration;
         }
-        
-        public static ConfigurationModel Configuration { get; private set; }
+
+        public static ConfigurationModel Configuration { get; set; }
     }
 }
