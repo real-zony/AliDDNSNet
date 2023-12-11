@@ -9,3 +9,4 @@ coverage:
     patch:
       default:
         informational: true
+  bot: codecov[bot]
