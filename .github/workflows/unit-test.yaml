@@ -21,4 +21,4 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
           flags: unittests
-          files: ./AliCloudDynamicDns.Test/coverage.opencover.xml
+          files: ./AliCloudDynamicDNS.Test/coverage.opencover.xml
