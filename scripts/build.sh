@@ -5,7 +5,6 @@ RELEASE_VERSION=$1
 PROGRAM_NAME=AliCloudDynamicDNS
 DOTNET_VERSION=8.0
 
-cd ../../AliCloudDynamicDNS || exit
 Platforms=('win-x64' 'linux-x64' 'osx-x64' 'linux-arm' 'linux-arm64')
 
 if ! [ -d './TempFiles' ]; then
