@@ -10,27 +10,44 @@ on:
         default: 'latest'
 
 jobs:
-  build-and-push-docker-image:
+  # build-and-push-docker-image:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: docker/setup-qemu-action@v3
+  #       name: "Set up QEMU"
+  #     - uses: docker/setup-buildx-action@v3
+  #       name: "Set up Docker Buildx"
+  #     - uses: docker/login-action@v3
+  #       name: "Login to Docker Hub"
+  #       with:
+  #         username: ${{ secrets.DOCKER_USERNAME }}
+  #         password: ${{ secrets.DOCKER_PASSWORD }}
+  #         registry: ghcr.io
+  #     - uses: docker/build-push-action@v5
+  #       name: "Build and push"
+  #       with:
+  #         push: true
+  #         tags: ghcr.io/real-zony/ali-cloud-dynamic-dns:${{ github.event.release.name }}
+  #         file: ./AliCloudDynamicDNS/Dockerfile
+  #         context: ./AliCloudDynamicDNS
+  #         platforms: linux/amd64,linux/arm64
+  build-binary:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-        name: "Set up QEMU"
-      - uses: docker/setup-buildx-action@v3
-        name: "Set up Docker Buildx"
-      - uses: docker/login-action@v3
-        name: "Login to Docker Hub"
+      - uses: actions/setup-dotnet@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          registry: ghcr.io
-      - uses: docker/build-push-action@v5
-        name: "Build and push"
+          dotnet-version: 8.x
+      - name: "Restore dependencies"
+        run: dotnet restore
+      - name: "Build and publish"
+        run: ./scripts/build.sh
+      - name: "Upload artifact to release"
+        uses: ncipollo/release-action@v1
         with:
-          push: true
-          tags: ghcr.io/real-zony/ali-cloud-dynamic-dns:${{ github.event.release.name }}
-          file: ./AliCloudDynamicDNS/Dockerfile
-          context: ./AliCloudDynamicDNS
-          platforms: linux/amd64,linux/arm64
-  # build-binary:
-  #   runs-on: ubuntu-latest
+          artifacts: "./TempFiles/*.zip"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+          artifactErrorsFailBuild: true
+          tag: ${{ github.event.release.name }}
