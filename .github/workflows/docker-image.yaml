@@ -50,3 +50,4 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
           artifactErrorsFailBuild: true
+          tag: ${{ github.event.release.name }}
