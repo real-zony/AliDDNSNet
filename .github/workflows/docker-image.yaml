@@ -43,6 +43,7 @@ jobs:
         run: dotnet restore
       - name: "Build and publish"
         run: ./scripts/build.sh
+        shell: bash
       - name: "Upload artifact to release"
         uses: ncipollo/release-action@v1
         with:
