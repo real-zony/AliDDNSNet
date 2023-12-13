@@ -14,13 +14,13 @@ namespace AliCloudDynamicDNS.AliCloud.ApiRequest
         {
             SortedDictionary = new SortedDictionary<string, string>(StringComparer.Ordinal)
             {
-                {"Format", "json"},
-                {"AccessKeyId", ConfigurationHelper.Configuration.AccessId},
-                {"SignatureMethod", "HMAC-SHA1"},
-                {"SignatureNonce", Guid.NewGuid().ToString()},
-                {"Version", "2015-01-09"},
-                {"SignatureVersion", "1.0"},
-                {"Timestamp", DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")}
+                { "Format", "json" },
+                { "AccessKeyId", ConfigurationHelper.Configuration.AccessId },
+                { "SignatureMethod", "HMAC-SHA1" },
+                { "SignatureNonce", Guid.NewGuid().ToString() },
+                { "Version", "2015-01-09" },
+                { "SignatureVersion", "1.0" },
+                { "Timestamp", DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ") }
             };
         }
 
@@ -43,13 +43,13 @@ namespace AliCloudDynamicDNS.AliCloud.ApiRequest
         {
             var queryString = GenerateSortedQueryString();
             var signBuilder = new StringBuilder();
-            
+
             signBuilder.Append(HttpMethod.Get)
-                .Append("&")
+                .Append('&')
                 .Append(SpecialUrlEncode("/"))
-                .Append("&")
+                .Append('&')
                 .Append(SpecialUrlEncode(queryString));
-            
+
             var hmac = new HMACSHA1(Encoding.UTF8.GetBytes($"{ConfigurationHelper.Configuration.AccessKey}&"));
             var signStr = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(signBuilder.ToString())));
             SortedDictionary.Add("Signature", signStr);
@@ -66,7 +66,7 @@ namespace AliCloudDynamicDNS.AliCloud.ApiRequest
                     .Append(SpecialUrlEncode(kv.Value));
             }
 
-            return sb.ToString().Substring(1);
+            return sb.ToString()[1..];
         }
 
         protected virtual string SpecialUrlEncode(string srcStr)
@@ -76,16 +76,16 @@ namespace AliCloudDynamicDNS.AliCloud.ApiRequest
             var bytes = Encoding.UTF8.GetBytes(srcStr);
             foreach (var @byte in bytes)
             {
-                var @char = (char) @byte;
+                var @char = (char)@byte;
                 // 如果值是 text 集合内的数据，则使用默认的值。
-                if (text.IndexOf(@char) >= 0)
+                if (text.Contains(@char))
                 {
                     stringBuilder.Append(@char);
                 }
                 else
                 {
-                    stringBuilder.Append("%")
-                        .Append(string.Format(CultureInfo.InvariantCulture, "{0:X2}", (int) @char));
+                    stringBuilder.Append('%')
+                        .Append(string.Format(CultureInfo.InvariantCulture, "{0:X2}", (int)@char));
                 }
             }
 
