@@ -9,12 +9,7 @@ namespace AliCloudDynamicDNS.AliCloud.ApiRequest
 {
     public class ApiRequestTool
     {
-        private readonly HttpClient _httpClient;
-
-        public ApiRequestTool()
-        {
-            _httpClient = new HttpClient();
-        }
+        private readonly HttpClient _httpClient = new();
 
         public async Task<JObject> GetRecordsWithMainDomainAsync(string mainDomainName)
         {
