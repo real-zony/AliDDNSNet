@@ -103,3 +103,34 @@ TODO
 本项目打包了常见系统、架构的二进制可执行文件，你可以直接下载对应的压缩包解压到你的路由器或者 NAS 里面进行运行。
 
 **[下载地址在这儿](https://github.com/GameBelial/AliDDNSNet/releases)**
+
+## 4. 自部署的 API 服务
+
+你可以直接使用我提供的 `https://api.myzony.com/get-ip` 作为 *PublicIpServer* 查询接口，如果服务不可用，你可以使用 NGINX 结合以下配置文件(*.config)部署自己的 IP 地址查询接口。
+
+```nginx
+server{
+    listen 80;
+    server_name yourdomain.com;
+    return 301 https://yourdomain.com$request_uri;
+}
+
+server{
+    listen 443 ssl;
+    http2 on;
+    server_name yourdomain.com;
+
+    ssl_certificate   /opt/cert/yourdomain.com.cer;
+    ssl_certificate_key  /opt/cert/yourdomain.com.key;
+    ssl_session_timeout 5m;
+    ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE:ECDH:AES:HIGH:!NULL:!aNULL:!MD5:!ADH:!RC4;
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+    ssl_prefer_server_ciphers on;
+
+    location /get-ip {
+        add_header Content-Type application/json;
+        return 200 '$remote_addr';
+    }
+}
+```
+
