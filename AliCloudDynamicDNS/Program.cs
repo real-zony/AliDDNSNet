@@ -1,4 +1,6 @@
 ﻿using System;
+using System.CommandLine;
+using System.CommandLine.NamingConventionBinder;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -8,33 +10,20 @@ using AliCloudDynamicDNS.AliCloud.Models;
 using AliCloudDynamicDNS.Configuration;
 using AliCloudDynamicDNS.Threading;
 using AliCloudDynamicDNS.Utility;
-using McMaster.Extensions.CommandLineUtils;
 using Newtonsoft.Json.Linq;
 using Nito.AsyncEx;
 
 namespace AliCloudDynamicDNS
 {
-    [HelpOption("-?|-h|--help")]
     public class Program
     {
-        [Option("-f|--file <FILE>", "指定自定义的配置文件，请传入配置文件的路径。", CommandOptionType.SingleValue)]
-        public string FilePath { get; set; }
+        public static string FilePath { get; set; }
+        public static uint Interval { get; set; }
 
-        [Option("-i|--interval <INTERVAL>", "指定程序的自动检测周期，单位是秒。", CommandOptionType.SingleValue)]
-        public uint Interval { get; set; }
+        private static StrongTimer _strongTimer;
+        private static readonly ApiRequestTool ApiRequestTool = new();
 
-        private StrongTimer _strongTimer;
-        private readonly ApiRequestTool _apiRequestTool = new ApiRequestTool();
-
-        public async Task OnExecuteAsync()
-        {
-            await InitializeConfigurationAsync();
-            InitializeStrongTimer();
-
-            await ConsoleAwaitExitAsync();
-        }
-
-        private async Task ConsoleAwaitExitAsync()
+        private static async Task ConsoleAwaitExitAsync()
         {
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("");
@@ -48,8 +37,8 @@ namespace AliCloudDynamicDNS
             Console.WriteLine("请输入：");
             Console.ForegroundColor = ConsoleColor.Gray;
 
-            string command = Console.ReadLine().ToLower();
-            Console.WriteLine("");
+            var command = Console.ReadLine()?.ToLower();
+            Console.WriteLine(string.Empty);
             switch (command)
             {
                 case "exit":
@@ -76,7 +65,7 @@ namespace AliCloudDynamicDNS
             }
         }
 
-        private async Task ConsoleWriteIpInfo()
+        private static async Task ConsoleWriteIpInfo()
         {
             ConsoleHelper.WriteInfo($"正在获取当前公网IP，请稍等...");
             var currentPubicIp = (await NetworkHelper.GetPublicNetworkIp()).Replace("\n", "");
@@ -84,10 +73,10 @@ namespace AliCloudDynamicDNS
             await ConsoleAwaitExitAsync();
         }
 
-        private void ConsoleWriteConfigInfo()
+        private static void ConsoleWriteConfigInfo()
         {
-            var intervalSec = (int) TimeSpan.FromSeconds(Interval).TotalSeconds;
-            StringBuilder iniConfMsg = new StringBuilder();
+            var intervalSec = (int)TimeSpan.FromSeconds(Interval).TotalSeconds;
+            var iniConfMsg = new StringBuilder();
             iniConfMsg.AppendLine($"\t当前配置内容如下：");
             iniConfMsg.AppendLine($"\t监听的时间周期：{intervalSec} 秒");
             iniConfMsg.AppendLine($"\tAccessId：{ConfigurationHelper.Configuration.AccessId}");
@@ -97,13 +86,14 @@ namespace AliCloudDynamicDNS
             foreach (var subDomain in ConfigurationHelper.Configuration.SubDomains)
             {
                 subDomainSerialNumber++;
-                iniConfMsg.AppendLine($"\t\t子域名地址{subDomainSerialNumber}：{subDomain.SubDomain}.{ConfigurationHelper.Configuration.MainDomain} - 记录类型：{subDomain.Type}");
+                iniConfMsg.AppendLine(
+                    $"\t\t子域名地址{subDomainSerialNumber}：{subDomain.SubDomain}.{ConfigurationHelper.Configuration.MainDomain} - 记录类型：{subDomain.Type}");
             }
 
             ConsoleHelper.WriteInfo(iniConfMsg.ToString());
         }
 
-        private async Task InitializeConfigurationAsync()
+        private static async Task InitializeConfigurationAsync()
         {
             var filePath = FilePath ?? Path.Combine(Environment.CurrentDirectory, "settings.json");
             if (!File.Exists(filePath))
@@ -116,16 +106,16 @@ namespace AliCloudDynamicDNS
             ConsoleWriteConfigInfo();
         }
 
-        private void InitializeStrongTimer()
+        private static void InitializeStrongTimer()
         {
-            int minInterval = 30;
+            const int minInterval = 30;
             if (Interval < minInterval && Interval != 0)
             {
                 ConsoleHelper.WriteError($"指定的时间周期必须大于或等于 {minInterval} 秒，用户指定的值：{Interval}");
                 Environment.Exit(-1);
             }
 
-            var intervalSec = (int) TimeSpan.FromSeconds(Interval).TotalMilliseconds;
+            var intervalSec = (int)TimeSpan.FromSeconds(Interval).TotalMilliseconds;
             _strongTimer = new StrongTimer
             {
                 Period = intervalSec == 0 ? 5000 : intervalSec,
@@ -137,28 +127,28 @@ namespace AliCloudDynamicDNS
             _strongTimer.Start();
             ConsoleHelper.WriteMessage("程序已经开始运行...");
 
-            if (Interval == 0)
+            if (Interval != 0)
             {
-                _strongTimer.Stop();
-                ConsoleHelper.WriteMessage("程序执行完成...");
-                Environment.Exit(0);
+                return;
             }
+
+            _strongTimer.Stop();
+            ConsoleHelper.WriteMessage("程序执行完成...");
+            Environment.Exit(0);
         }
 
-        private async Task UpdateRecord(bool isWriteNoUpdateInfo = false)
+        private static async Task UpdateRecord(bool isWriteNoUpdateInfo = false)
         {
             try
             {
-                var records = (await _apiRequestTool.GetRecordsWithMainDomainAsync(ConfigurationHelper.Configuration.MainDomain))
+                var records =
+                    (await ApiRequestTool.GetRecordsWithMainDomainAsync(ConfigurationHelper.Configuration.MainDomain))
                     .SelectTokens($"$.DomainRecords.Record[*]")
-                    .Select(x => new AliCloudRecordModel
-                    {
-                        RecordId = x.SelectToken("$.RecordId")?.Value<string>(),
-                        SubName = x.SelectToken("$.RR")?.Value<string>(),
-                        Value = x.SelectToken("$.Value")?.Value<string>()
-                    })
+                    .Select(x => new AliCloudRecordModel(x.SelectToken("$.RR")?.Value<string>(),
+                        x.SelectToken("$.RecordId")?.Value<string>(), x.SelectToken("$.Value")?.Value<string>()))
                     .ToList();
-                ConsoleHelper.WriteInfo($"远程API获取的域名[{ConfigurationHelper.Configuration.MainDomain}]的解析记录有：{records.Count}条");
+                ConsoleHelper.WriteInfo(
+                    $"远程API获取的域名[{ConfigurationHelper.Configuration.MainDomain}]的解析记录有：{records.Count}条");
                 var currentPubicIp = (await NetworkHelper.GetPublicNetworkIp()).Replace("\n", "");
                 if (!string.IsNullOrEmpty(currentPubicIp))
                 {
@@ -168,7 +158,8 @@ namespace AliCloudDynamicDNS
                         var record = records.FirstOrDefault(x => x.SubName == subDomain.SubDomain);
                         if (record == null)
                         {
-                            ConsoleHelper.WriteError($" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 在远程API获取的域名中未找到，无法进行更新IP操作...");
+                            ConsoleHelper.WriteError(
+                                $" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 在远程API获取的域名中未找到，无法进行更新IP操作...");
                             continue;
                         }
 
@@ -176,21 +167,26 @@ namespace AliCloudDynamicDNS
                         {
                             if (isWriteNoUpdateInfo)
                             {
-                                ConsoleHelper.WriteInfo($"{record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 记录的IP与当前获取的公网IP一致，无需更新");
+                                ConsoleHelper.WriteInfo(
+                                    $"{record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 记录的IP与当前获取的公网IP一致，无需更新");
                             }
 
                             continue;
                         }
 
                         // 更新指定的子域名 IP。
-                        var result = (await _apiRequestTool.UpdateRecordAsync(record.RecordId, currentPubicIp, subDomain)).SelectToken("$.RecordId").Value<string>();
+                        var result =
+                            (await ApiRequestTool.UpdateRecordAsync(record.RecordId, currentPubicIp, subDomain))
+                            .SelectToken("$.RecordId").Value<string>();
                         if (result == null || result != record.RecordId)
                         {
-                            ConsoleHelper.WriteError($" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 更新失败...");
+                            ConsoleHelper.WriteError(
+                                $" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 更新失败...");
                         }
                         else
                         {
-                            ConsoleHelper.WriteInfo($" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 更新成功，IP：{record.Value} => {currentPubicIp}");
+                            ConsoleHelper.WriteInfo(
+                                $" {record.SubName}.{ConfigurationHelper.Configuration.MainDomain} 更新成功，IP：{record.Value} => {currentPubicIp}");
                         }
                     }
                 }
@@ -205,6 +201,35 @@ namespace AliCloudDynamicDNS
             }
         }
 
-        public static Task<int> Main(string[] args) => CommandLineApplication.ExecuteAsync<Program>(args);
+        public static Task<int> Main(string[] args)
+        {
+            var rootCommand = new RootCommand();
+
+            var fileOption = new Option<string>(
+                new[] { "-f", "--file" },
+                "指定自定义的配置文件，请传入配置文件的路径。"
+            );
+
+            var intervalOption = new Option<uint>(
+                new[] { "-i", "--interval" },
+                "指定程序的自动检测周期，单位是秒。"
+            );
+
+            rootCommand.AddOption(fileOption);
+            rootCommand.AddOption(intervalOption);
+            rootCommand.Handler = CommandHandler.Create<string, uint>(async (file, interval) =>
+            {
+                Interval = interval;
+                FilePath = file;
+
+                await InitializeConfigurationAsync();
+                InitializeStrongTimer();
+                await ConsoleAwaitExitAsync();
+
+                return 0;
+            });
+
+            return rootCommand.InvokeAsync(args);
+        }
     }
 }

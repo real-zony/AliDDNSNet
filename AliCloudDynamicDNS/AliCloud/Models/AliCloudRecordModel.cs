@@ -1,23 +1,3 @@
-﻿namespace AliCloudDynamicDNS.AliCloud.Models
-{
-    public class AliCloudRecordModel
-    {
-        public string SubName { get; set; }
+﻿namespace AliCloudDynamicDNS.AliCloud.Models;
 
-        public string RecordId { get; set; }
-
-        public string Value { get; set; }
-
-        public AliCloudRecordModel(string subName, string recordId, string value)
-        {
-            SubName = subName;
-            RecordId = recordId;
-            Value = value;
-        }
-
-        public AliCloudRecordModel()
-        {
-            
-        }
-    }
-}
+public record AliCloudRecordModel(string SubName, string RecordId, string Value);
