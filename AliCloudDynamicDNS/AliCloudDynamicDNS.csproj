@@ -2,31 +2,40 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RuntimeFrameworkVersion>10.0.14</RuntimeFrameworkVersion>
         <Version>0.0.5</Version>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-        <PackageReference Include="Nito.AsyncEx.Context" Version="5.1.2" />
-        <PackageReference Include="Nito.AsyncEx.Tasks" Version="5.1.2" />
-        <PackageReference Include="Nito.Disposables" Version="2.5.0" />
-        <PackageReference Include="System.Collections.Immutable" Version="8.0.0" />
-        <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
-        <PackageReference Include="System.CommandLine.Hosting" Version="0.4.0-alpha.22272.1" />
+        <PackageReference Include="System.CommandLine" Version="2.0.14" />
+        <PackageReference Include="Spectre.Console" Version="0.57.2" />
+        <InternalsVisibleTo Include="AliCloudDynamicDNS.Test" />
     </ItemGroup>
 
     <ItemGroup>
-        <None Update="settings.json">
-            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-        </None>
+        <None Update="**/settings.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+        <Content Update="**/settings.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
     </ItemGroup>
 
     <ItemGroup>
         <None Remove="settings.json.example" />
         <Content Include="settings.json.example">
-            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         </Content>
     </ItemGroup>
+
+    <Target Name="CreateReleaseArchive" AfterTargets="Publish" Condition="'$(ReleaseArchiveName)' != ''">
+        <Error Condition="Exists('$(PublishDir)settings.json')"
+               Text="Release publish output must not contain settings.json." />
+        <Error Condition="!Exists('$(PublishDir)settings.json.example')"
+               Text="Release publish output must contain settings.json.example." />
+        <ZipDirectory SourceDirectory="$(PublishDir)"
+                      DestinationFile="$(PublishDir)../../$(ReleaseArchiveName)"
+                      Overwrite="false" />
+    </Target>
 
 </Project>

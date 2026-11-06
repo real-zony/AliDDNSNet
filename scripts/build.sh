@@ -1,20 +1,35 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# 从命令行参数获取版本号，而不是交互式输入
-RELEASE_VERSION=$1
-PROGRAM_NAME=AliCloudDynamicDNS
-DOTNET_VERSION=8.0
-
-Platforms=('win-x64' 'linux-x64' 'osx-x64' 'linux-arm' 'linux-arm64')
-
-if ! [ -d './TempFiles' ]; then
-    mkdir ./TempFiles
+if [[ $# -lt 1 || $# -gt 2 || ! "$1" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+    printf 'Usage: %s <version, e.g. v0.1.0> [output-parent-directory]\n' "$0" >&2
+    exit 2
 fi
 
-rm -rf ./TempFiles/*
+release_version=$1
+application_version=${release_version#v}
+script_directory=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+repository_root=$(cd -- "$script_directory/.." && pwd)
+application_project="$repository_root/AliCloudDynamicDNS/AliCloudDynamicDNS.csproj"
+output_parent=${2:-"$repository_root/TempFiles"}
+mkdir -p -- "$output_parent"
+output_parent=$(cd -- "$output_parent" && pwd)
+artifact_directory=$(mktemp -d "$output_parent/release-${release_version}.XXXXXXXX")
+cd -- "$repository_root"
+platforms=('win-x64' 'linux-x64' 'osx-x64' 'linux-arm' 'linux-arm64')
 
-for platform in "${Platforms[@]}"; do
-    dotnet publish -r "$platform" -c Release -p:PublishSingleFile=true -p:PublishTrimmed=true --self-contained true /p:useapphost=true -p:PublishWithAspNetCoreTargetManifest=false
-    zip -r -j "./AliCloudDynamicDNS/bin/Release/net$DOTNET_VERSION/$platform/publish/${PROGRAM_NAME}_${platform}_$RELEASE_VERSION.zip" "./AliCloudDynamicDNS/bin/Release/net$DOTNET_VERSION/$platform/publish/"*
-    mv "./AliCloudDynamicDNS/bin/Release/net$DOTNET_VERSION/$platform/publish/${PROGRAM_NAME}_${platform}_$RELEASE_VERSION.zip" ./TempFiles
+for platform in "${platforms[@]}"; do
+    publish_directory="$artifact_directory/.publish/$platform"
+    dotnet publish "$application_project" \
+        --configuration Release --framework net10.0 --runtime "$platform" \
+        --output "$publish_directory" --self-contained true \
+        -p:Version="$application_version" -p:RuntimeFrameworkVersion=10.0.14 \
+        -p:UseAppHost=true -p:PublishSingleFile=true -p:PublishTrimmed=true \
+        -p:IncludeNativeLibrariesForSelfExtract=true \
+        -p:ReleaseArchiveName="AliCloudDynamicDNS_${platform}_${release_version}.zip"
 done
+
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+    printf 'artifact_dir=%s\n' "$artifact_directory" >> "$GITHUB_OUTPUT"
+fi
+printf 'Release archives: %s\n' "$artifact_directory"

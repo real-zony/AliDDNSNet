@@ -1,54 +1,101 @@
-name: "Build Docker Image And Push"
+name: "Build Docker Image And Release Binaries"
 on:
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag'
+        description: 'Existing release tag, for example v0.1.0 (not the release display name)'
         required: true
-        default: 'latest'
+        type: string
+
+permissions:
+  contents: read
 
 jobs:
-  build-and-push-docker-image:
-    runs-on: ubuntu-latest
+  select-release:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-        name: "Set up QEMU"
-      - uses: docker/setup-buildx-action@v3
-        name: "Set up Docker Buildx"
-      - uses: docker/login-action@v3
-        name: "Login to Docker Hub"
+      - name: "Select the release or manual tag"
+        id: release
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ || ${#RELEASE_TAG} -gt 128 ]]; then
+            printf 'A version tag such as v0.1.0 is required (optional prerelease suffix; maximum 128 characters).\n' >&2
+            exit 2
+          fi
+          printf 'tag=%s\nversion=%s\n' "$RELEASE_TAG" "${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+
+  build-binary:
+    needs: select-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ needs.select-release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.select-release.outputs.tag }}
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - name: "Build all five release archives"
+        id: build
+        shell: bash
+        run: ./scripts/build.sh "$RELEASE_TAG" "$RUNNER_TEMP/release-artifacts"
+      - name: "Extract the native Linux release archive"
+        shell: bash
+        env:
+          ARTIFACT_DIRECTORY: ${{ steps.build.outputs.artifact_dir }}
+        run: unzip -q "$ARTIFACT_DIRECTORY/AliCloudDynamicDNS_linux-x64_$RELEASE_TAG.zip" -d "$RUNNER_TEMP/release-smoke"
+      - name: "Smoke the packaged native entry point"
+        shell: pwsh
+        run: ./scripts/smoke-publish.ps1 -PublishDirectory "${{ runner.temp }}/release-smoke"
+      - name: "Attach archives to the selected GitHub release"
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
+        with:
+          artifacts: "${{ steps.build.outputs.artifact_dir }}/*.zip"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+          artifactErrorsFailBuild: true
+          omitBodyDuringUpdate: true
+          omitNameDuringUpdate: true
+          omitDraftDuringUpdate: true
+          omitPrereleaseDuringUpdate: true
+          tag: ${{ needs.select-release.outputs.tag }}
+
+  build-and-push-docker-image:
+    needs: [select-release, build-binary]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.select-release.outputs.tag }}
+      - name: "Set up native Buildx (no QEMU SDK execution)"
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: "Login to GHCR"
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           registry: ghcr.io
-      - uses: docker/build-push-action@v5
-        name: "Build and push"
+      - name: "Build and push both container architectures"
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           push: true
-          tags: ghcr.io/real-zony/ali-cloud-dynamic-dns:${{ github.event.release.name }}
+          tags: ghcr.io/real-zony/ali-cloud-dynamic-dns:${{ needs.select-release.outputs.tag }}
           file: ./AliCloudDynamicDNS/Dockerfile
           context: ./AliCloudDynamicDNS
           platforms: linux/amd64,linux/arm64
-  build-binary:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: 8.x
-      - name: "Restore dependencies"
-        run: dotnet restore
-      - name: "Build and publish"
-        run: ./scripts/build.sh
-        shell: bash
-      - name: "Upload artifact to release"
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: "./TempFiles/*.zip"
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          artifactErrorsFailBuild: true
-          tag: ${{ github.event.release.name }}
+          build-args: VERSION=${{ needs.select-release.outputs.version }}

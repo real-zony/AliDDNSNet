@@ -1,3 +1,3 @@
 ﻿namespace AliCloudDynamicDNS.AliCloud.Models;
 
-public record AliCloudRecordModel(string SubName, string RecordId, string Value);
+public sealed record AliCloudRecordModel(string SubName, string RecordId, string Value, string Type, string Line);

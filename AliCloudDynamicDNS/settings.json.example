@@ -5,21 +5,23 @@
   "AccessKey": "AccessKey",
   // 主域名。
   "MainDomain": "example.com",
-  // 公网 IP 获取服务器地址。
-  "PublicIpServer": "https://api.myzony.com/get-ip",
+  // 可选的通用公网 IP 来源；AAAA 未单独指定来源时也沿用此配置。
+  "PublicIpServer": "https://api.ipify.org",
+  // IPv6 专用来源。只需要 IPv4 时，删除下方 AAAA 记录即可。
+  "PublicIpv6Server": "https://api6.ipify.org",
   // 需要批量变更的子域名记录集合。
   "SubDomains": [
     {
-      // 子域名记录类型。
+      // 更新目标只支持 A（IPv4）和 AAAA（IPv6）。
       "Type": "A",
       // 子域名记录前缀。
-      "SubDomain": "sub1",
-      // TTL 时间。
+      "SubDomain": "home",
+      // DNS TTL，单位秒；不是命令行 -i 指定的检测周期。
       "Interval": 600
     },
     {
-      "Type": "A",
-      "SubDomain": "sub2",
+      "Type": "AAAA",
+      "SubDomain": "home",
       "Interval": 600
     }
   ]

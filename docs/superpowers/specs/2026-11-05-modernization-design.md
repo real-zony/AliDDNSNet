@@ -1,7 +1,7 @@
 # AliDDNSNet 现代化改造设计
 
 日期：2026-11-05  
-状态：用户已于 2026-11-06 批准；实施计划编写中，尚未开始产品实现。
+状态：用户已批准并完成核心实现及分域复审；第 2 节保留实施前调查快照，后续实测与环境边界见第 13 节。
 
 ## 1. 目标与已确认决策
 
@@ -226,3 +226,16 @@
 - AliDNS 分页与记录字段：https://help.aliyun.com/en/dns/api-alidns-2015-01-09-describedomainrecords
 - AliDNS 更新与 Line 默认值：https://help.aliyun.com/zh/dns/api-alidns-2015-01-09-updatedomainrecord
 - .NET 10 平台与 QEMU 限制：https://github.com/dotnet/core/blob/main/release-notes/10.0/supported-os.md
+
+## 13. 实施验证记录
+
+- 已升级到 .NET SDK 10.0.403 / 运行时 10.0.14，保留的直接与传递 NuGet 依赖均经检查，无可用稳定更新或已报告漏洞。
+- 已用同一 v0.0.5 源码对照裁剪/不裁剪发布：不裁剪能进入配置处理，裁剪出现与 #52 一致的缺少 OnExecute 异常；可下载旧发布包也复现。此结论不推断报告者未注明的二进制身份。新版显式入口和 JSON 源生成的实际裁剪发布/解压产物入口冒烟通过。
+- #11 修复前实际旧程序会把同名 A/AAAA 都写到 A 的 RecordId，且缺失记录触发空引用；新版受控完整链路按记录类型写入正确 ID/地址，保留线路，处理分页及部分失败。
+- 完整回归 85 项通过，0 失败、0 跳过，无编译警告；另有 17 个受控 HTTP/CLI 场景通过，签名由独立实现验证，覆盖真实 30 秒周期、取消、地址源兼容及错误分支。
+- 审阅发现并经 RED/GREEN 修正了响应正文超时边界、HTTP 超时与用户取消的区分，以及区域性正号的参数校验问题。分域复审未发现修复引入的新缺陷。
+- 五种 RID 实际发布和 ZIP 打包成功，无裁剪警告；ZIP 根条目及唯一假密钥标记排除检查通过，Windows 解压产物已实际启动。ZIP 改用 SDK 的 ZipDirectory，并以 .gitattributes 固定 Bash 脚本 LF，避免增加外部归档工具依赖。
+- Windows 生成的 ZIP 没有 Unix 执行位；Unix 解压后需要 chmod +x。Ubuntu Release job 在 Unix 上生成、解压并运行产物，保留源文件模式；本机交叉发布不等于目标系统原生执行。
+- 实际 Windows 原生终端已检查中文表格、脱敏、命令交互、正常退出与 60 列布局。独立 Windows CTRL_C_EVENT 测试观察到原生进程退出码 130。
+- 未执行 Docker 构建/运行（本机没有 Docker），未在 Linux/macOS/Arm 上原生执行。本机 DNS 无法解析 IPv6 专用默认源的 AAAA，未声称完成真实公网 IPv6 连通验证；受控 IPv6 数据路径已验证。没有使用真实用户凭据写入线上 DNS。
+

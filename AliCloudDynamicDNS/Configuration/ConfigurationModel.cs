@@ -1,31 +1,16 @@
-﻿using System.Collections.Generic;
+﻿namespace AliCloudDynamicDNS.Configuration;
 
-namespace AliCloudDynamicDNS.Configuration
+public sealed class ConfigurationModel
 {
-    /// <summary>
-    /// 配置文件的相关参数。
-    /// </summary>
-    public class ConfigurationModel
-    {
-        /// <summary>
-        /// 阿里云的 Access Id。
-        /// </summary>
-        public string AccessId { get; set; }
+    public string AccessId { get; init; } = string.Empty;
 
-        /// <summary>
-        /// 阿里云的 Access Key。
-        /// </summary>
-        public string AccessKey { get; set; }
+    public string AccessKey { get; init; } = string.Empty;
 
-        // 主域名。
-        public string MainDomain { get; set; }
+    public string MainDomain { get; init; } = string.Empty;
 
-        /// <summary>
-        /// 公网 IP 获取服务器地址。
-        /// </summary>
-        public string PublicIpServer { get; set; }
+    public string? PublicIpServer { get; init; }
 
-        // 需要批量变更的子域名记录集合。
-        public List<SubDomainRecord> SubDomains { get; set; }
-    }
+    public string? PublicIpv6Server { get; init; }
+
+    public IReadOnlyList<SubDomainRecord> SubDomains { get; init; } = Array.Empty<SubDomainRecord>();
 }

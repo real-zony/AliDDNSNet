@@ -1,0 +1,17 @@
+# This file is relative to the AliCloudDynamicDNS build context, not the repository root.
+**
+!**/
+!**/*.cs
+!AliCloudDynamicDNS.csproj
+!settings.json.example
+
+**/bin
+**/obj
+**/TestResults
+**/.git
+**/.vs
+**/.idea
+**/settings.json
+**/*.user
+**/*.suo
+**/*.zip
