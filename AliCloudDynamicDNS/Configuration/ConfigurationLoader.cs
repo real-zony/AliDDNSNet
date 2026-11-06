@@ -14,11 +14,18 @@ public static class ConfigurationLoader
         ConfigurationModel? configuration;
         try
         {
-            var (encoding, preambleLength) = await DetectBomEncodingAsync(stream, cancellationToken);
-            stream.Position = preambleLength;
+            var prefix = new byte[4];
+            var prefixLength = await stream.ReadAtLeastAsync(prefix, prefix.Length, throwOnEndOfStream: false,
+                cancellationToken: cancellationToken);
+            var (encoding, preambleLength) = DetectBomEncoding(prefix.AsSpan(0, prefixLength));
+            var canSeek = stream.CanSeek;
+            if (canSeek)
+                stream.Position = preambleLength;
+            await using Stream? replay = canSeek ? null
+                : new PrefixReadStream(stream, prefix.AsMemory(preambleLength, prefixLength - preambleLength));
             await using var transcoded = encoding is null ? null
-                : Encoding.CreateTranscodingStream(stream, encoding, Encoding.UTF8, leaveOpen: true);
-            configuration = await JsonSerializer.DeserializeAsync(transcoded ?? stream,
+                : Encoding.CreateTranscodingStream(replay ?? stream, encoding, Encoding.UTF8, leaveOpen: true);
+            configuration = await JsonSerializer.DeserializeAsync(transcoded ?? replay ?? stream,
                 ConfigurationJsonContext.Default.ConfigurationModel, cancellationToken);
         }
         catch (JsonException exception)
@@ -65,13 +72,9 @@ public static class ConfigurationLoader
         };
     }
 
-    private static async Task<(Encoding? Encoding, int PreambleLength)> DetectBomEncodingAsync(
-        FileStream stream, CancellationToken cancellationToken)
+    private static (Encoding? Encoding, int PreambleLength) DetectBomEncoding(ReadOnlySpan<byte> prefix)
     {
-        var prefix = new byte[4];
-        var length = await stream.ReadAtLeastAsync(prefix, prefix.Length, throwOnEndOfStream: false,
-            cancellationToken: cancellationToken);
-
+        var length = prefix.Length;
         // UTF-32 LE starts with the UTF-16 LE BOM, so inspect both four-byte BOMs first.
         if (length >= 4)
         {
@@ -91,6 +94,82 @@ public static class ConfigurationLoader
             return (null, 3);
 
         return (null, 0);
+    }
+
+    private sealed class PrefixReadStream(Stream inner, ReadOnlyMemory<byte> prefix) : Stream
+    {
+        private readonly Stream _inner = inner;
+        private readonly ReadOnlyMemory<byte> _prefix = prefix;
+        private int _consumed;
+        private bool _disposed;
+
+        public override bool CanRead => !_disposed && _inner.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            ValidateBufferArguments(buffer, offset, count);
+            return Read(buffer.AsSpan(offset, count));
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (buffer.IsEmpty)
+                return 0;
+            return _consumed < _prefix.Length ? ReadPrefix(buffer) : _inner.Read(buffer);
+        }
+
+        public override int ReadByte()
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _consumed < _prefix.Length ? _prefix.Span[_consumed++] : _inner.ReadByte();
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            ValidateBufferArguments(buffer, offset, count);
+            return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+        }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (cancellationToken.IsCancellationRequested)
+                return ValueTask.FromCanceled<int>(cancellationToken);
+            if (buffer.IsEmpty)
+                return ValueTask.FromResult(0);
+            return _consumed < _prefix.Length
+                ? ValueTask.FromResult(ReadPrefix(buffer.Span))
+                : _inner.ReadAsync(buffer, cancellationToken);
+        }
+
+        private int ReadPrefix(Span<byte> buffer)
+        {
+            var count = Math.Min(buffer.Length, _prefix.Length - _consumed);
+            _prefix.Span.Slice(_consumed, count).CopyTo(buffer);
+            _consumed += count;
+            return count;
+        }
+
+        public override void Flush() => ObjectDisposedException.ThrowIf(_disposed, this);
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            // The loader's outer FileStream scope owns the underlying stream.
+            _disposed = true;
+            base.Dispose(disposing);
+        }
     }
 
     private static void RequireValue(string? value, string field)

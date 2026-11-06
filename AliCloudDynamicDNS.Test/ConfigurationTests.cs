@@ -78,6 +78,41 @@ public sealed class ConfigurationTests
         Assert.Null(configuration.PublicIpv6Server);
     }
 
+    [Theory]
+    [InlineData("UTF8")]
+    [InlineData("UTF8BOM")]
+    [InlineData("UTF16LE")]
+    [InlineData("UTF32LE")]
+    public async Task ReadsNonSeekableLegacyConfigurationPath(string encodingName)
+    {
+        Encoding encoding = encodingName switch
+        {
+            "UTF8" => new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true),
+            "UTF8BOM" => new UTF8Encoding(encoderShouldEmitUTF8Identifier: true, throwOnInvalidBytes: true),
+            "UTF16LE" => new UnicodeEncoding(bigEndian: false, byteOrderMark: true, throwOnInvalidBytes: true),
+            "UTF32LE" => new UTF32Encoding(bigEndian: false, byteOrderMark: true, throwOnInvalidCharacters: true),
+            _ => throw new ArgumentOutOfRangeException(nameof(encodingName))
+        };
+        const string json = """
+            {"accessid":"pipe-id","accesskey":"pipe-secret","maindomain":"example.com","subdomains":[{"type":"aaaa","subdomain":"主机.家庭","interval":900}]}
+            """;
+        var bytes = encoding.GetPreamble().Concat(encoding.GetBytes(json)).ToArray();
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(10));
+        await using var file = await NonSeekableConfigurationFile.CreateAsync(bytes, cancellation.Token);
+
+        var pending = ConfigurationLoader.LoadAsync(file.Path, cancellation.Token);
+        await file.CompleteWritingAsync();
+        var configuration = await pending.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal("pipe-id", configuration.AccessId);
+        Assert.Equal("pipe-secret", configuration.AccessKey);
+        Assert.Equal("example.com", configuration.MainDomain);
+        Assert.Equal(new SubDomainRecord("AAAA", "主机.家庭", 900), Assert.Single(configuration.SubDomains));
+        Assert.Null(configuration.PublicIpServer);
+        Assert.Null(configuration.PublicIpv6Server);
+    }
+
     [Fact]
     public async Task DoesNotFillAbsentSourcesWithIpv4Default()
     {
