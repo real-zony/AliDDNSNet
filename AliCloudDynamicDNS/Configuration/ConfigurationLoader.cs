@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace AliCloudDynamicDNS.Configuration;
@@ -13,7 +14,11 @@ public static class ConfigurationLoader
         ConfigurationModel? configuration;
         try
         {
-            configuration = await JsonSerializer.DeserializeAsync(stream,
+            var (encoding, preambleLength) = await DetectBomEncodingAsync(stream, cancellationToken);
+            stream.Position = preambleLength;
+            await using var transcoded = encoding is null ? null
+                : Encoding.CreateTranscodingStream(stream, encoding, Encoding.UTF8, leaveOpen: true);
+            configuration = await JsonSerializer.DeserializeAsync(transcoded ?? stream,
                 ConfigurationJsonContext.Default.ConfigurationModel, cancellationToken);
         }
         catch (JsonException exception)
@@ -58,6 +63,34 @@ public static class ConfigurationLoader
             PublicIpv6Server = configuration.PublicIpv6Server,
             SubDomains = Array.AsReadOnly(targets)
         };
+    }
+
+    private static async Task<(Encoding? Encoding, int PreambleLength)> DetectBomEncodingAsync(
+        FileStream stream, CancellationToken cancellationToken)
+    {
+        var prefix = new byte[4];
+        var length = await stream.ReadAtLeastAsync(prefix, prefix.Length, throwOnEndOfStream: false,
+            cancellationToken: cancellationToken);
+
+        // UTF-32 LE starts with the UTF-16 LE BOM, so inspect both four-byte BOMs first.
+        if (length >= 4)
+        {
+            if (prefix[0] == 0xFF && prefix[1] == 0xFE && prefix[2] == 0x00 && prefix[3] == 0x00)
+                return (Encoding.UTF32, 4);
+            if (prefix[0] == 0x00 && prefix[1] == 0x00 && prefix[2] == 0xFE && prefix[3] == 0xFF)
+                return (Encoding.GetEncoding(12001), 4); // Built-in UTF-32 BE; no code-page provider required.
+        }
+        if (length >= 2)
+        {
+            if (prefix[0] == 0xFF && prefix[1] == 0xFE)
+                return (Encoding.Unicode, 2);
+            if (prefix[0] == 0xFE && prefix[1] == 0xFF)
+                return (Encoding.BigEndianUnicode, 2);
+        }
+        if (length >= 3 && prefix[0] == 0xEF && prefix[1] == 0xBB && prefix[2] == 0xBF)
+            return (null, 3);
+
+        return (null, 0);
     }
 
     private static void RequireValue(string? value, string field)

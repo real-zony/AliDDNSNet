@@ -27,6 +27,7 @@ AliCloudDynamicDNS 是基于 .NET 10 的阿里云动态 DNS 工具。它通过�
 - `SubDomains`：需要更新的**已有**记录。`Type` 只支持 A / AAAA，忽略大小写；`SubDomain` 填 RR，例如 `home`、`@`、`*` 或 `a.b`。
 - `SubDomains[].Interval`：更新记录时使用的 DNS TTL，单位秒，须符合阿里云账号/解析版本的限制；它不是程序检测周期。
 - 配置接受 JSON 注释、尾随逗号和大小写不敏感的属性名。未知属性被忽略；无效配置会在更新前报错。
+- 默认使用 UTF-8；旧文件带有 BOM 时，也支持 UTF-16 / UTF-32 的大小端编码。普通 UTF-8 文件直接流式解析，其他 BOM 编码按需转码。
 
 ### 地址源与旧配置兼容
 

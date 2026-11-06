@@ -105,6 +105,15 @@ try {
         throw 'Nested target validation did not return exit 1 with an unsupported-record-type diagnostic.'
     }
 
+    $bomConfigurationPath = Join-Path $workingDirectory 'nested-targets-utf32le.json'
+    $bomConfiguration = [System.IO.File]::ReadAllText($configurationPath, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText($bomConfigurationPath, $bomConfiguration, [System.Text.UTF32Encoding]::new($false, $true, $true))
+
+    $bomNested = Invoke-PublishedApplication -Arguments @('--file', $bomConfigurationPath, '--interval', '0')
+    if ($bomNested.ExitCode -ne 1 -or $bomNested.Text -notmatch '(?i)CNAME|record\s*type|SubDomains\[1\]\.Type|记录类型') {
+        throw 'UTF32LE BOM target validation did not return exit 1 with an unsupported-record-type diagnostic.'
+    }
+
     Write-Host "Native published entry-point smoke passed: $executableName"
 }
 finally {

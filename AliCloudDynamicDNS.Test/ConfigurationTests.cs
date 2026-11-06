@@ -1,3 +1,4 @@
+using System.Text;
 using AliCloudDynamicDNS.Configuration;
 using Xunit;
 
@@ -35,6 +36,46 @@ public sealed class ConfigurationTests
             target => Assert.Equal(new SubDomainRecord("AAAA", "@", 600), target),
             target => Assert.Equal(new SubDomainRecord("A", "*", 900), target),
             target => Assert.Equal(new SubDomainRecord("A", "a.b", 1200), target));
+    }
+
+    [Theory]
+    [InlineData("UTF8")]
+    [InlineData("UTF16LE")]
+    [InlineData("UTF16BE")]
+    [InlineData("UTF32LE")]
+    [InlineData("UTF32BE")]
+    public async Task ReadsBomEncodedLegacyConfiguration(string encodingName)
+    {
+        Encoding encoding = encodingName switch
+        {
+            "UTF8" => new UTF8Encoding(encoderShouldEmitUTF8Identifier: true, throwOnInvalidBytes: true),
+            "UTF16LE" => new UnicodeEncoding(bigEndian: false, byteOrderMark: true, throwOnInvalidBytes: true),
+            "UTF16BE" => new UnicodeEncoding(bigEndian: true, byteOrderMark: true, throwOnInvalidBytes: true),
+            "UTF32LE" => new UTF32Encoding(bigEndian: false, byteOrderMark: true, throwOnInvalidCharacters: true),
+            "UTF32BE" => new UTF32Encoding(bigEndian: true, byteOrderMark: true, throwOnInvalidCharacters: true),
+            _ => throw new ArgumentOutOfRangeException(nameof(encodingName))
+        };
+        const string json = """
+            {
+              // Existing BOM-encoded settings retain the legacy JSON read options.
+              "accessid": "bom-test-id",
+              "accesskey": "bom-test-secret",
+              "maindomain": "example.com",
+              "subdomains": [
+                { "type": "aaaa", "subdomain": "主机.家庭", "interval": 900, },
+              ],
+            }
+            """;
+        using var file = new TemporaryConfiguration(encoding.GetPreamble().Concat(encoding.GetBytes(json)).ToArray());
+
+        var configuration = await ConfigurationLoader.LoadAsync(file.Path, TestContext.Current.CancellationToken);
+
+        Assert.Equal("bom-test-id", configuration.AccessId);
+        Assert.Equal("bom-test-secret", configuration.AccessKey);
+        Assert.Equal("example.com", configuration.MainDomain);
+        Assert.Equal(new SubDomainRecord("AAAA", "主机.家庭", 900), Assert.Single(configuration.SubDomains));
+        Assert.Null(configuration.PublicIpServer);
+        Assert.Null(configuration.PublicIpv6Server);
     }
 
     [Fact]
@@ -160,6 +201,8 @@ public sealed class ConfigurationTests
         public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"alidns-config-{Guid.NewGuid():N}.json");
 
         public TemporaryConfiguration(string json) => File.WriteAllText(Path, json);
+
+        public TemporaryConfiguration(byte[] bytes) => File.WriteAllBytes(Path, bytes);
 
         public void Dispose() => File.Delete(Path);
     }
