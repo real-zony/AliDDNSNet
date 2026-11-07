@@ -187,7 +187,7 @@ $published.AotArchive
 
 `-Version` 默认取项目版本，`-OutputParent` 默认 `TempFiles`，`-DotnetPath` 可指定 SDK 可执行文件。脚本每次创建独立输出目录，不清理其他目录；归档名为 `AliCloudDynamicDNS_<RID>_v<版本>.zip` / `.tar.gz`。包内包含示例配置及平台调试符号，不包含真实 `settings.json`。
 
-不支持一台机器跨操作系统生成 AOT。Linux Arm32 可在 Linux x64/Arm64 上配齐交叉工具链后，通过 `-Launcher qemu-arm -LauncherArguments ...` 执行冒烟；CI 的 Ubuntu 24.04 armhf 依赖和启动参数见 `scripts/install-linux-aot-deps.sh` 与 `native-aot.yaml`。
+不支持一台机器跨操作系统生成 AOT。Linux Arm32 可在 Linux x64/Arm64 上配齐交叉工具链后，通过 `-Launcher qemu-arm -LauncherArguments ...` 执行冒烟；Arm32 发布默认显式选择 `lld` 交叉链接，避免误用宿主机仅支持 x64 的 `ld.bfd`。CI 的 Ubuntu 24.04 armhf 依赖和启动参数见 `scripts/install-linux-aot-deps.sh` 与 `native-aot.yaml`。
 
 脚本先运行发布目录，再打包、解压并运行最终归档。Unix 使用 tar.gz 保留执行权限和 macOS dSYM 目录。也可单独执行：
 
