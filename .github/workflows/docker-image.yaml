@@ -1,4 +1,5 @@
-name: "Build Docker Image And Release Binaries"
+name: "Release Native AOT Binaries And Three-Architecture GHCR Image"
+
 on:
   release:
     types: [published]
@@ -12,14 +13,20 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
 jobs:
   select-release:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
+      source-sha: ${{ steps.source.outputs.sha }}
     steps:
-      - name: "Select the release or manual tag"
+      - name: "Validate the selected release or manual version tag"
         id: release
         shell: bash
         env:
@@ -30,72 +37,163 @@ jobs:
             exit 2
           fi
           printf 'tag=%s\nversion=%s\n' "$RELEASE_TAG" "${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ steps.release.outputs.tag }}
+          persist-credentials: false
+      - name: "Resolve the tag once to its immutable commit and require an existing release"
+        id: source
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          source_sha=$(git rev-parse HEAD)
+          if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            printf 'The selected tag did not resolve to a source commit.\n' >&2
+            exit 2
+          fi
+          existing_tag=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          if [[ "$existing_tag" != "$RELEASE_TAG" ]]; then
+            printf 'An existing GitHub release matching the selected tag is required.\n' >&2
+            exit 2
+          fi
+          printf 'sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
 
-  build-binary:
+  build-binaries:
     needs: select-release
+    uses: ./.github/workflows/native-aot.yaml
+    with:
+      source-sha: ${{ needs.select-release.outputs.source-sha }}
+      version: ${{ needs.select-release.outputs.version }}
+      upload-artifacts: true
+
+  upload-binaries:
+    needs: [select-release, build-binaries]
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
     permissions:
       contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.select-release.outputs.source-sha }}
+          persist-credentials: false
+      - name: "Collect all six final, target-executed archives"
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-binary-*
+          path: ${{ runner.temp }}/release-artifacts
+          merge-multiple: true
+      - name: "Require the six exact versioned archives before attaching to the existing release"
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.select-release.outputs.tag }}
+          APP_VERSION: ${{ needs.select-release.outputs.version }}
+          ARTIFACT_DIRECTORY: ${{ runner.temp }}/release-artifacts
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          archives=()
+          for rid in win-x64 linux-x64 linux-arm64 linux-arm osx-x64 osx-arm64; do
+            extension=tar.gz
+            if [[ "$rid" == win-x64 ]]; then extension=zip; fi
+            archive="$ARTIFACT_DIRECTORY/AliCloudDynamicDNS_${rid}_v${APP_VERSION}.${extension}"
+            if [[ ! -f "$archive" ]]; then
+              printf 'Missing final smoke-tested archive: %s\n' "$archive" >&2
+              exit 2
+            fi
+            archives+=("$archive")
+          done
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName
+          gh release upload "$RELEASE_TAG" "${archives[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+
+  build-containers:
+    needs: [select-release, build-binaries]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/container-aot.yaml
+    with:
+      source-sha: ${{ needs.select-release.outputs.source-sha }}
+      version: ${{ needs.select-release.outputs.version }}
+      publish: true
+
+  publish-image-index:
+    needs: [select-release, build-containers]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
     env:
+      SOURCE_SHA: ${{ needs.select-release.outputs.source-sha }}
+      APP_VERSION: ${{ needs.select-release.outputs.version }}
       RELEASE_TAG: ${{ needs.select-release.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/tags/${{ needs.select-release.outputs.tag }}
-      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+          ref: ${{ needs.select-release.outputs.source-sha }}
+          persist-credentials: false
+      - name: "Collect immutable digests only after all three image smokes and pushes succeed"
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          global-json-file: global.json
-      - name: "Build all five release archives"
-        id: build
-        shell: bash
-        run: ./scripts/build.sh "$RELEASE_TAG" "$RUNNER_TEMP/release-artifacts"
-      - name: "Extract the native Linux release archive"
-        shell: bash
-        env:
-          ARTIFACT_DIRECTORY: ${{ steps.build.outputs.artifact_dir }}
-        run: unzip -q "$ARTIFACT_DIRECTORY/AliCloudDynamicDNS_linux-x64_$RELEASE_TAG.zip" -d "$RUNNER_TEMP/release-smoke"
-      - name: "Smoke the packaged native entry point"
-        shell: pwsh
-        run: ./scripts/smoke-publish.ps1 -PublishDirectory "${{ runner.temp }}/release-smoke"
-      - name: "Attach archives to the selected GitHub release"
-        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
-        with:
-          artifacts: "${{ steps.build.outputs.artifact_dir }}/*.zip"
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          artifactErrorsFailBuild: true
-          omitBodyDuringUpdate: true
-          omitNameDuringUpdate: true
-          omitDraftDuringUpdate: true
-          omitPrereleaseDuringUpdate: true
-          tag: ${{ needs.select-release.outputs.tag }}
-
-  build-and-push-docker-image:
-    needs: [select-release, build-binary]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: refs/tags/${{ needs.select-release.outputs.tag }}
-      - name: "Set up native Buildx (no QEMU SDK execution)"
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - name: "Login to GHCR"
+          pattern: image-digest-*
+          path: ${{ runner.temp }}/image-digests
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: "Login to GHCR for immutable digest aggregation"
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
           registry: ghcr.io
-      - name: "Build and push both container architectures"
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          push: true
-          tags: ghcr.io/real-zony/ali-cloud-dynamic-dns:${{ needs.select-release.outputs.tag }}
-          file: ./AliCloudDynamicDNS/Dockerfile
-          context: ./AliCloudDynamicDNS
-          platforms: linux/amd64,linux/arm64
-          build-args: VERSION=${{ needs.select-release.outputs.version }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Validate and publish the selected tag as exactly three tested image digests"
+        shell: pwsh
+        env:
+          OWNER: ${{ github.repository_owner }}
+          DIGEST_DIRECTORY: ${{ runner.temp }}/image-digests
+        run: |
+          $repository = "ghcr.io/$($env:OWNER.ToLowerInvariant())/ali-cloud-dynamic-dns"
+          $platforms = [ordered]@{ amd64 = 'linux/amd64'; arm64 = 'linux/arm64'; armv7 = 'linux/arm/v7' }
+          $files = @(Get-ChildItem -LiteralPath $env:DIGEST_DIRECTORY -Filter '*.json' -File)
+          if ($files.Count -ne 3) { throw 'Exactly three tested architecture digest records are required.' }
+          $records = @{}
+          $references = foreach ($arch in $platforms.Keys) {
+            $path = Join-Path $env:DIGEST_DIRECTORY "$arch.json"
+            $record = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+            if ($record.Architecture -cne $arch -or $record.Platform -cne $platforms[$arch] -or
+                $record.Repository -cne $repository -or $record.Source -cne $env:SOURCE_SHA -or
+                $record.Version -cne $env:APP_VERSION -or $record.Digest -cnotmatch '^sha256:[0-9a-f]{64}$' -or
+                $record.ImageId -cnotmatch '^sha256:[0-9a-f]{64}$') {
+              throw "The $arch image digest record does not match the selected release source/version/platform."
+            }
+            $reference = "$repository@$($record.Digest)"
+            $manifest = docker buildx imagetools inspect --raw $reference | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0 -or $manifest.config.digest -cne $record.ImageId) {
+              throw "The immutable $arch registry manifest no longer matches its tested image configuration."
+            }
+            $records[$record.Platform] = $record.Digest
+            $reference
+          }
+          function Assert-TestedIndex($index) {
+            if (@($index.manifests).Count -ne 3) { throw 'The image index must contain exactly three manifests.' }
+            $seen = @{}
+            foreach ($manifest in $index.manifests) {
+              $platform = "$($manifest.platform.os)/$($manifest.platform.architecture)"
+              if ($manifest.platform.architecture -eq 'arm') { $platform += "/$($manifest.platform.variant)" }
+              if (!$records.ContainsKey($platform) -or $seen.ContainsKey($platform) -or $records[$platform] -cne $manifest.digest) {
+                throw "The image index contains an unexpected platform or untested digest: $platform."
+              }
+              $seen[$platform] = $true
+            }
+          }
+          $taggedImage = "$($repository):$env:RELEASE_TAG"
+          # Dry-run validates the full index before the selected public tag is changed.
+          $candidate = docker buildx imagetools create --dry-run --tag $taggedImage @references | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to assemble the tested image index.' }
+          Assert-TestedIndex $candidate
+          docker buildx imagetools create --tag $taggedImage @references
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to publish the tested image index.' }
+          $published = docker buildx imagetools inspect --raw $taggedImage | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to inspect the published image index.' }
+          Assert-TestedIndex $published

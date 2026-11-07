@@ -1,0 +1,136 @@
+name: "Native AOT Tests And Final Archive Smoke"
+
+on:
+  workflow_call:
+    inputs:
+      source-sha:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      upload-artifacts:
+        default: false
+        type: boolean
+      collect-coverage:
+        default: false
+        type: boolean
+      include-windows-baseline:
+        default: false
+        type: boolean
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  native-aot:
+    name: "${{ matrix.rid }} / ${{ matrix.execution }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            rid: win-x64
+            execution: native tests and archive smoke
+          - runner: ubuntu-24.04
+            rid: linux-x64
+            execution: native tests and archive smoke
+          - runner: ubuntu-24.04-arm
+            rid: linux-arm64
+            execution: native tests and archive smoke
+          - runner: ubuntu-24.04
+            rid: linux-arm
+            execution: Arm32 cross-compiled AOT, qemu-arm emulated archive smoke
+          - runner: macos-15-intel
+            rid: osx-x64
+            execution: native tests and archive smoke
+          - runner: macos-15
+            rid: osx-arm64
+            execution: native tests and archive smoke
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      SOURCE_SHA: ${{ inputs.source-sha }}
+      APP_VERSION: ${{ inputs.version }}
+      RUNTIME_IDENTIFIER: ${{ matrix.rid }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source-sha }}
+          persist-credentials: false
+      - name: "Verify the immutable source checkout"
+        shell: pwsh
+        run: |
+          $actual = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or $env:SOURCE_SHA -cnotmatch '^[0-9a-f]{40}$' -or $actual -cne $env:SOURCE_SHA) {
+            throw 'The checkout must match the selected immutable source commit.'
+          }
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - name: "Install Linux native or Arm32 cross toolchain dependencies"
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash ./scripts/install-linux-aot-deps.sh "$RUNTIME_IDENTIFIER"
+      - name: "Run tests on the actual native OS and CPU"
+        if: matrix.rid != 'linux-arm' && !(matrix.rid == 'linux-x64' && inputs.collect-coverage)
+        shell: pwsh
+        run: |
+          dotnet test AliCloudDynamicDNS.sln --configuration Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: "Run the single Linux coverage collector"
+        if: matrix.rid == 'linux-x64' && inputs.collect-coverage
+        shell: pwsh
+        run: |
+          dotnet test AliCloudDynamicDNS.sln --configuration Release --collect:'XPlat Code Coverage;Format=opencover' --results-directory TestResults
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $reports = @(Get-ChildItem -LiteralPath TestResults -Recurse -File -Filter coverage.opencover.xml)
+          if ($reports.Count -ne 1) {
+            throw "Expected exactly one VSTest collector report, found $($reports.Count)."
+          }
+          Copy-Item -LiteralPath $reports[0].FullName -Destination TestResults/coverage.opencover.xml
+      - name: "Upload the single Linux coverage report"
+        if: matrix.rid == 'linux-x64' && inputs.collect-coverage
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+          flags: unittests
+          files: ./TestResults/coverage.opencover.xml
+          disable_search: true
+      - name: "Publish AOT and execute both the native output and extracted final archive"
+        id: publish
+        shell: pwsh
+        env:
+          INCLUDE_BASELINE: ${{ inputs.include-windows-baseline }}
+        run: |
+          $parameters = @{
+            RuntimeIdentifier = $env:RUNTIME_IDENTIFIER
+            Version = $env:APP_VERSION
+            OutputParent = Join-Path $env:RUNNER_TEMP 'native-aot'
+          }
+          if ($env:RUNTIME_IDENTIFIER -eq 'win-x64' -and $env:INCLUDE_BASELINE -eq 'true') {
+            $parameters.IncludeBaseline = $true
+          }
+          if ($env:RUNTIME_IDENTIFIER -eq 'linux-arm') {
+            # Only the final Arm32 executable is emulated; dotnet and the AOT compiler run natively on x64.
+            $parameters.Launcher = '/usr/bin/qemu-arm'
+            $parameters.LauncherArguments = @('-L', '/', '-E', 'LD_LIBRARY_PATH=/usr/lib/arm-linux-gnueabihf:/lib/arm-linux-gnueabihf')
+          }
+          $result = & ./scripts/publish.ps1 @parameters
+          if ($result.RuntimeIdentifier -ne $env:RUNTIME_IDENTIFIER -or !(Test-Path -LiteralPath $result.AotArchive -PathType Leaf)) {
+            throw 'The publisher did not return the expected final, smoke-tested AOT archive.'
+          }
+          "archive=$($result.AotArchive)" >> $env:GITHUB_OUTPUT
+      - name: "Retain the final smoke-tested release archive"
+        if: inputs.upload-artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-binary-${{ matrix.rid }}
+          path: ${{ steps.publish.outputs.archive }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

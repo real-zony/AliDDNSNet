@@ -28,14 +28,4 @@
         </Content>
     </ItemGroup>
 
-    <Target Name="CreateReleaseArchive" AfterTargets="Publish" Condition="'$(ReleaseArchiveName)' != ''">
-        <Error Condition="Exists('$(PublishDir)settings.json')"
-               Text="Release publish output must not contain settings.json." />
-        <Error Condition="!Exists('$(PublishDir)settings.json.example')"
-               Text="Release publish output must contain settings.json.example." />
-        <ZipDirectory SourceDirectory="$(PublishDir)"
-                      DestinationFile="$(PublishDir)../../$(ReleaseArchiveName)"
-                      Overwrite="false" />
-    </Target>
-
 </Project>

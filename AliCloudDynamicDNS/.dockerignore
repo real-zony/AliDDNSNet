@@ -3,11 +3,15 @@
 !**/
 !**/*.cs
 !AliCloudDynamicDNS.csproj
+!Properties/PublishProfiles/NativeAot.pubxml
 !settings.json.example
 
 **/bin
 **/obj
 **/TestResults
+**/TempFiles
+**/artifacts
+**/publish
 **/.git
 **/.vs
 **/.idea

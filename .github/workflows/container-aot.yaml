@@ -1,0 +1,166 @@
+name: "Build And Smoke Each AOT Container Architecture"
+
+on:
+  workflow_call:
+    inputs:
+      source-sha:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      publish:
+        default: false
+        type: boolean
+
+# Inherit the caller's permissions: CI/PR callers stay contents:read only;
+# only the release caller grants packages:write. Never elevate a PR token here.
+jobs:
+  container-aot:
+    name: "${{ matrix.platform }} / build, load, smoke${{ inputs.publish && ', push tested image' || '' }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+          - runner: ubuntu-24.04
+            platform: linux/arm/v7
+            arch: armv7
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      SOURCE_SHA: ${{ inputs.source-sha }}
+      APP_VERSION: ${{ inputs.version }}
+      IMAGE_ARCHITECTURE: ${{ matrix.arch }}
+      IMAGE_PLATFORM: ${{ matrix.platform }}
+      LOCAL_IMAGE: aliddns-ci:${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source-sha }}
+          persist-credentials: false
+      - name: "Verify the immutable source checkout and publication context"
+        shell: pwsh
+        env:
+          PUBLISH_IMAGE: ${{ inputs.publish }}
+        run: |
+          $actual = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or $env:SOURCE_SHA -cnotmatch '^[0-9a-f]{40}$' -or $actual -cne $env:SOURCE_SHA) {
+            throw 'The checkout must match the selected immutable source commit.'
+          }
+          if ($env:PUBLISH_IMAGE -eq 'true' -and $env:GITHUB_EVENT_NAME -notin @('release', 'workflow_dispatch')) {
+            throw 'Container publication is permitted only by the release workflow.'
+          }
+      - name: "Derive the lowercase GHCR repository identity"
+        id: identity
+        shell: bash
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: printf 'image=ghcr.io/%s/ali-cloud-dynamic-dns\n' "${OWNER,,}" >> "$GITHUB_OUTPUT"
+      - name: "Enable Arm32 target package tools and executable emulation only"
+        if: matrix.arch == 'armv7'
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        with:
+          platforms: arm
+          image: tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+      - name: "Set up Buildx on the native host CPU (never emulate the SDK)"
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: "Build and load the one target-platform AOT image without pushing"
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ./AliCloudDynamicDNS
+          file: ./AliCloudDynamicDNS/Dockerfile
+          platforms: ${{ matrix.platform }}
+          tags: ${{ env.LOCAL_IMAGE }}
+          load: true
+          push: false
+          provenance: false
+          sbom: false
+          build-args: |
+            VERSION=${{ inputs.version }}
+            REVISION=${{ inputs.source-sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+      - name: "Execute the final loaded AOT container on its target platform"
+        id: smoke
+        shell: pwsh
+        env:
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          $image = docker image inspect $env:LOCAL_IMAGE | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $image.Id -cnotmatch '^sha256:[0-9a-f]{64}$') {
+            throw 'The build did not load the expected local image.'
+          }
+          $testedImageId = $image.Id
+          if ($image.Config.Labels.'org.opencontainers.image.version' -cne $env:APP_VERSION -or
+              $image.Config.Labels.'org.opencontainers.image.revision' -cne $env:SOURCE_SHA -or
+              $image.Config.Labels.'org.opencontainers.image.source' -cne $env:SOURCE_URL) {
+            throw 'The loaded image provenance does not match the selected source, version and repository.'
+          }
+          & ./scripts/smoke-container.ps1 -Image $env:LOCAL_IMAGE -Platform $env:IMAGE_PLATFORM -ExpectedSource $env:SOURCE_URL
+          $afterSmoke = docker image inspect $env:LOCAL_IMAGE | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $afterSmoke.Id -cne $testedImageId) {
+            throw 'The local image identity changed during the target-platform smoke.'
+          }
+          "image-id=$testedImageId" >> $env:GITHUB_OUTPUT
+      - name: "Login to GHCR only after the target-platform smoke succeeds"
+        if: inputs.publish && (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Push the exact tested local image and record its immutable digest"
+        if: inputs.publish && (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
+        shell: pwsh
+        env:
+          IMAGE_REPOSITORY: ${{ steps.identity.outputs.image }}
+          EXPECTED_IMAGE_ID: ${{ steps.smoke.outputs.image-id }}
+        run: |
+          $image = docker image inspect $env:LOCAL_IMAGE | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $image.Id -cne $env:EXPECTED_IMAGE_ID) {
+            throw 'The loaded local image no longer matches the exact smoke-tested image.'
+          }
+          $stageTag = "build-$($env:SOURCE_SHA.Substring(0, 12))-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:IMAGE_ARCHITECTURE"
+          $remote = "$($env:IMAGE_REPOSITORY):$stageTag"
+          docker image tag $env:EXPECTED_IMAGE_ID $remote
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to tag the tested local image.' }
+          docker image push $remote
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to push the tested local image.' }
+          $pushed = docker image inspect $remote | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $pushed.Id -cne $env:EXPECTED_IMAGE_ID) {
+            throw 'The pushed image identity does not match the smoke-tested image.'
+          }
+          $prefix = "$($env:IMAGE_REPOSITORY)@"
+          $digests = @($pushed.RepoDigests | Where-Object { $_.StartsWith($prefix, [StringComparison]::Ordinal) })
+          if ($digests.Count -ne 1 -or $digests[0].Substring($prefix.Length) -cnotmatch '^sha256:[0-9a-f]{64}$') {
+            throw 'Expected exactly one immutable GHCR digest for the tested image.'
+          }
+          $manifest = docker buildx imagetools inspect --raw $digests[0] | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $manifest.config.digest -cne $env:EXPECTED_IMAGE_ID) {
+            throw 'The immutable registry manifest must reference the exact tested image configuration.'
+          }
+          $directory = Join-Path $env:RUNNER_TEMP 'image-digest'
+          New-Item -ItemType Directory -Path $directory -Force | Out-Null
+          [ordered]@{
+            Architecture = $env:IMAGE_ARCHITECTURE
+            Platform = $env:IMAGE_PLATFORM
+            Repository = $env:IMAGE_REPOSITORY
+            Digest = $digests[0].Substring($prefix.Length)
+            ImageId = $env:EXPECTED_IMAGE_ID
+            Source = $env:SOURCE_SHA
+            Version = $env:APP_VERSION
+          } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $directory "$env:IMAGE_ARCHITECTURE.json") -Encoding utf8NoBOM
+      - name: "Retain the tested image digest for the all-three manifest gate"
+        if: inputs.publish && (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: image-digest-${{ matrix.arch }}
+          path: ${{ runner.temp }}/image-digest/${{ matrix.arch }}.json
+          if-no-files-found: error
+          retention-days: 7

@@ -1,6 +1,10 @@
-name: "Unit Test And Published Entry Smoke"
+name: "Native Tests, AOT Archives And Three-Architecture Containers"
+
 on:
   pull_request:
+    branches:
+      - main
+  push:
     branches:
       - main
 
@@ -8,84 +12,19 @@ permissions:
   contents: read
 
 jobs:
-  unit-test:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
-        with:
-          global-json-file: global.json
-      - name: "Run VSTest with the coverage collector"
-        run: >-
-          dotnet test AliCloudDynamicDNS.sln --configuration Release
-          --collect:"XPlat Code Coverage;Format=opencover"
-          --results-directory TestResults
-      - name: "Select the single collector report"
-        shell: pwsh
-        run: |
-          $reports = @(Get-ChildItem -LiteralPath TestResults -Recurse -File -Filter coverage.opencover.xml)
-          if ($reports.Count -ne 1) {
-            throw "Expected exactly one VSTest collector report, found $($reports.Count)."
-          }
-          Copy-Item -LiteralPath $reports[0].FullName -Destination TestResults/coverage.opencover.xml
-      - name: "Upload Code Coverage"
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: true
-          flags: unittests
-          files: ./TestResults/coverage.opencover.xml
-          disable_search: true
+  native-checks:
+    uses: ./.github/workflows/native-aot.yaml
+    with:
+      source-sha: ${{ github.sha }}
+      version: 0.0.0-ci
+      collect-coverage: true
+      include-windows-baseline: true
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-  native-publish-smoke:
-    name: "Native trimmed entry smoke (${{ matrix.rid }})"
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-24.04
-            rid: linux-x64
-          - runner: windows-2025
-            rid: win-x64
-          - runner: macos-15-intel
-            rid: osx-x64
-          - runner: ubuntu-24.04-arm
-            rid: linux-arm64
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
-        with:
-          global-json-file: global.json
-      - name: "Publish the native application"
-        shell: pwsh
-        run: >-
-          dotnet publish ./AliCloudDynamicDNS/AliCloudDynamicDNS.csproj
-          --configuration Release --framework net10.0 --runtime ${{ matrix.rid }}
-          --output "${{ runner.temp }}/native-publish" --self-contained true
-          -p:Version=0.0.0-ci -p:RuntimeFrameworkVersion=10.0.14
-          -p:UseAppHost=true -p:PublishSingleFile=true -p:PublishTrimmed=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-      - name: "Exercise the published native entry point"
-        shell: pwsh
-        run: ./scripts/smoke-publish.ps1 -PublishDirectory "${{ runner.temp }}/native-publish"
-
-  arm32-cross-publish:
-    name: "Cross-publish linux-arm (not native runtime evidence)"
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
-        with:
-          global-json-file: global.json
-      - name: "Cross-publish the Arm32 application"
-        run: >-
-          dotnet publish ./AliCloudDynamicDNS/AliCloudDynamicDNS.csproj
-          --configuration Release --framework net10.0 --runtime linux-arm
-          --output "${{ runner.temp }}/arm32-publish" --self-contained true
-          -p:Version=0.0.0-ci -p:RuntimeFrameworkVersion=10.0.14
-          -p:UseAppHost=true -p:PublishSingleFile=true -p:PublishTrimmed=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
+  container-checks:
+    uses: ./.github/workflows/container-aot.yaml
+    with:
+      source-sha: ${{ github.sha }}
+      version: 0.0.0-ci
+      publish: false
