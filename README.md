@@ -138,9 +138,13 @@ services:
     restart: unless-stopped
 ```
 
-发布工作流将镜像推送到 `ghcr.io/real-zony/ali-cloud-dynamic-dns`，镜像标签与选定的 Release tag 一致。使用已发布镜像前确认对应标签存在；本地构建不会自动推送。
+发布工作流使用仓库的 `GITHUB_TOKEN` 推送 GHCR，不需要配置 `DOCKER_USERNAME` / `DOCKER_PASSWORD`。镜像地址按仓库所有者生成，当前为 `ghcr.io/real-zony/ali-cloud-dynamic-dns:<Release tag>`。同一个标签包含 `linux/amd64`、`linux/arm64`、`linux/arm/v7` 三种架构，Docker 自动选择；不会自动更新 `latest`。使用前确认对应标签已经发布；本地构建不会自动推送。
 
-多架构构建使用 Buildx，支持 `linux/amd64` 和 `linux/arm64`。SDK 构建阶段运行在构建机原生架构，再按目标架构交叉发布，不依赖 QEMU 执行 .NET SDK。容器使用框架依赖的 DLL 部署，与二进制分发的自包含单文件发布分开。
+镜像使用 Native AOT 可执行文件和带 ICU 的 Alpine `runtime-deps`，不再通过 `dotnet ...dll` 启动。SDK、ILCompiler、clang/lld 始终在构建机原生 CPU 上执行，使用目标架构 sysroot 链接。CI 的 amd64、arm64 各用原生 runner；Arm32 的目标系统包安装和最终程序冒烟使用 QEMU，不模拟运行 .NET SDK。
+
+每种架构只构建一次：加载本地镜像，检查平台、ELF、版本和源码提交，再在禁网容器中实际测试帮助、缺失配置和嵌套配置校验。测试通过后才推送相同 image ID；三种架构全部成功后，按不可变 digest 合成并检查 Release 标签。中间架构镜像使用独立的 `build-...` 标签，不会提前改动正式标签。
+
+如果同名 GHCR 包以前由 PAT 手工创建，需要在包设置的 **Manage Actions access** 中授予本仓库写权限；工作流仅在发布任务申请 `packages: write`。PR 和普通 CI 不登录、不推送镜像。
 
 ## 4. 构建与测试
 
@@ -160,33 +164,76 @@ dotnet test AliCloudDynamicDNS.sln -c Release --collect:"XPlat Code Coverage;For
 dotnet ./AliCloudDynamicDNS/bin/Release/net10.0/AliCloudDynamicDNS.dll -f ./settings.json
 ```
 
-### 二进制打包
+### Native AOT 二进制打包
 
-需要 Bash 和上述 .NET SDK。ZIP 由 SDK 内置的 MSBuild `ZipDirectory` 生成，不再依赖外部 `zip` 命令。
+使用原生 PowerShell 7、上述 .NET SDK，以及目标系统的本机工具链：Windows 需要 Visual Studio 2022 或更新版本的 MSVC x64/x86 和 Windows SDK；Linux 需要 clang、LLVM 及目标系统开发库；macOS 需要 Xcode Command Line Tools。CI 自动准备 Linux 工具链。AOT/裁剪警告按错误处理，不回退到 CoreCLR。
 
-```sh
-# 显式传入版本；第二个参数可指定输出父目录
-bash ./scripts/build.sh v0.1.0
-bash ./scripts/build.sh v0.1.0 ./release-output
+| RID | CI 构建环境 | 归档 | 运行验证 |
+| --- | --- | --- | --- |
+| `win-x64` | `windows-2025` | ZIP | 原生单测及归档冒烟 |
+| `linux-x64` | `ubuntu-24.04` | tar.gz | 原生单测及归档冒烟 |
+| `linux-arm64` | `ubuntu-24.04-arm` | tar.gz | 原生单测及归档冒烟 |
+| `linux-arm` | Ubuntu x64 + armhf 交叉工具链 | tar.gz | QEMU 执行实际 Arm32 归档，不是真机单测 |
+| `osx-x64` | `macos-15-intel` | tar.gz | 原生单测及归档冒烟 |
+| `osx-arm64` | `macos-15` | tar.gz | 原生单测及归档冒烟 |
+
+在对应系统和 CPU 上运行：
+
+```powershell
+# Linux x64 示例；Windows 使用 win-x64，Apple Silicon 使用 osx-arm64
+$published = ./scripts/publish.ps1 -RuntimeIdentifier linux-x64 -Version v0.1.0
+$published.AotArchive
 ```
 
-每次在输出父目录下创建独立的 `release-<版本>.<随机后缀>` 目录，并打印其路径，不清理其他用户目录。生成 win-x64、linux-x64、osx-x64、linux-arm、linux-arm64 五种裁剪、自包含、单文件 ZIP。包内保留 `settings.json.example`，不复制真实 `settings.json`。
+`-Version` 默认取项目版本，`-OutputParent` 默认 `TempFiles`，`-DotnetPath` 可指定 SDK 可执行文件。脚本每次创建独立输出目录，不清理其他目录；归档名为 `AliCloudDynamicDNS_<RID>_v<版本>.zip` / `.tar.gz`。包内包含示例配置及平台调试符号，不包含真实 `settings.json`。
 
-Windows 生成的 ZIP 不携带 Unix 执行权限；在 Linux/macOS 解压后先执行 `chmod +x AliCloudDynamicDNS`。Ubuntu 发布工作流保留源文件的执行位，并实际解压后运行冒烟检查；本机 Windows 交叉打包不能替代这项原生验证。
+不支持一台机器跨操作系统生成 AOT。Linux Arm32 可在 Linux x64/Arm64 上配齐交叉工具链后，通过 `-Launcher qemu-arm -LauncherArguments ...` 执行冒烟；CI 的 Ubuntu 24.04 armhf 依赖和启动参数见 `scripts/install-linux-aot-deps.sh` 与 `native-aot.yaml`。
 
-对本机可执行的发布/解压目录，可运行发布入口冒烟检查（需要 PowerShell 7）：
+脚本先运行发布目录，再打包、解压并运行最终归档。Unix 使用 tar.gz 保留执行权限和 macOS dSYM 目录。也可单独执行：
 
 ```sh
-pwsh ./scripts/smoke-publish.ps1 -PublishDirectory ./path/to/publish
+pwsh ./scripts/smoke-publish.ps1 -PublishDirectory ./path/to/extracted-release
 ```
 
-该检查覆盖真实入口、配置读取、错误退出和敏感信息排除，不代表已验证线上 DNS 写入或全部目标平台。
+冒烟覆盖真实入口、配置/BOM 读取、错误退出和敏感信息排除，不写线上 DNS。模拟运行不能替代对应硬件验证。
+
+### Windows AOT 与 CoreCLR 对比
+
+Windows 的可选基线保留原来的裁剪、自包含、单文件部署，仅用于同机对比；常规发版使用 Native AOT。
+
+```powershell
+# 同一份源码同时生成 AOT 和现有 CoreCLR 基线；版本默认取项目 Version
+$published = ./scripts/publish.ps1 -RuntimeIdentifier win-x64 -IncludeBaseline
+
+# 若 SDK 安装在用户目录，可在上述命令加上：
+# -DotnetPath "$HOME/.dotnet/dotnet.exe"
+
+# 对最终 EXE 做同机对比，不重新构建
+./scripts/compare-windows-publish.ps1 `
+  -BaselineDirectory $published.BaselinePublishDirectory `
+  -AotDirectory $published.AotPublishDirectory `
+  -Iterations 100
+```
+
+`-IncludeBaseline` 仅支持 `win-x64`，返回两套发布目录及已解压冒烟的 ZIP；不加时只生成 AOT。两种 EXE 都可直接运行，不要求目标机另装 .NET。CI 的 Windows 检查也保留这条基线路径。
+
+基线参数为 Release、自包含、裁剪、单文件、原生库自解压。比较脚本默认每场景每种模式预热 5 次、测量 40 次，交替启动两种 EXE；场景为 `--help` 和嵌套配置校验，不使用真实凭据或访问阿里云。`comparison.json` 保留环境、文件哈希、原始样本和 median/p95，分别统计 EXE、部署文件、PDB、总目录及同算法 ZIP 大小。
+
+这是**热文件缓存下的新进程启动/CLI 测量**，不是磁盘冷启动、DNS 吞吐量或常驻进程内存测试。内存指标是进程峰值工作集；短进程 CPU 计时受 Windows 统计粒度影响，0 不代表没有 CPU 消耗。PDB 不参与运行，比较部署体积时应与包含符号的总大小分开看。
+
+### CI/CD 触发与发版
+
+- `unit-test.yaml`：PR 到 `main`、push 到 `main` 时调用共享检查；五种原生环境跑单测，六种二进制做最终归档冒烟，三种容器做运行冒烟。只有 Linux x64 生成并上传一份覆盖率报告。
+- `docker-image.yaml`：发布 GitHub Release，或手动指定已有 Release 的 tag 时触发。先把 tag 解析为固定 commit，所有二进制和镜像统一 checkout 该 commit；六份已验证归档上传到该 Release，三种已验证镜像合成对应 GHCR 标签。
+- `native-aot.yaml` / `container-aot.yaml`：CI 与发版复用同一套构建、运行检查；任何必需架构失败都不会被忽略。相同 tag 的发布串行执行。
+
+手动重发的目标 tag 必须包含这套新脚本；不会拿当前分支的程序冒充旧 tag，也不会自动创建 Release。以上是流程中的验收门槛，只有对应 GitHub Actions 运行成功，才代表那次提交在目标 runner 上验证通过。
 
 ### 运行环境边界
 
-自包含包不要求另装 .NET 运行时，但操作系统和本机库仍需符合 [.NET 10 支持要求](https://github.com/dotnet/core/blob/main/release-notes/10.0/supported-os.md)。尤其注意 Linux Arm32 需要 Y2038 兼容的 glibc，基线为 2.35；Linux x64/Arm64 的 glibc 基线为 2.27。相同 RID 不代表所有旧群晖、路由器或 NAS 系统都能继续直接运行。
+AOT 不要求另装 .NET，但仍依赖操作系统、本机库、证书及全球化数据。Linux 二进制使用 glibc，Alpine 镜像使用 musl，不能直接互换。实际最低兼容环境由构建机/目标 sysroot 决定，不能仅凭 RID 或 [.NET 10 支持要求](https://github.com/dotnet/core/blob/main/release-notes/10.0/supported-os.md)推断旧系统可运行。
 
-CI 定义了 Windows x64、Linux x64/Arm64、Intel macOS 原生产物冒烟；Arm32 仅交叉发布。交叉发布成功不等于已经在目标设备运行成功。
+当前 Linux 二进制流程基于 Ubuntu 24.04，Arm32 使用同发行版的 Y2038 兼容 armhf 库；不保证旧群晖、路由器或 NAS 兼容。macOS 分别在 Intel/Apple Silicon runner 上验证，未配置 Developer ID 签名或公证。Arm32 的 QEMU 冒烟明确属于模拟执行，不是真机验证。
 
 ## 5. 下载
 
