@@ -15,7 +15,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$dockerPath = (Get-Command docker -CommandType Application -ErrorAction Stop).Source
+$dockerPath = (Get-Command docker -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 $workingDirectory = [System.IO.Directory]::CreateTempSubdirectory('AliDDNSNet-container-smoke-').FullName
 $runId = [guid]::NewGuid().ToString('N')
 $ownedContainers = [System.Collections.Generic.List[string]]::new()
