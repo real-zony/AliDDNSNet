@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string] $PublishDirectory
+    [string] $PublishDirectory,
+    [string] $Launcher,
+    [string[]] $LauncherArguments = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,11 +14,23 @@ $executablePath = Join-Path $publishPath $executableName
 if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
     throw "Published executable is missing: $executableName"
 }
-if (Get-ChildItem -LiteralPath $publishPath -Recurse -File -Filter 'settings.json') {
+if (Get-ChildItem -LiteralPath $publishPath -Recurse -Force | Where-Object { $_.Name -ieq 'settings.json' }) {
     throw 'Published output contains a real settings.json.'
 }
 if (-not (Test-Path -LiteralPath (Join-Path $publishPath 'settings.json.example') -PathType Leaf)) {
     throw 'Published output is missing settings.json.example.'
+}
+
+$launcherExecutable = $null
+if (-not [string]::IsNullOrWhiteSpace($Launcher)) {
+    $launcherCommand = Get-Command -Name $Launcher -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $launcherCommand) {
+        throw "Published application launcher is missing: $Launcher"
+    }
+    $launcherExecutable = $launcherCommand.Source
+}
+elseif ($LauncherArguments.Count -gt 0) {
+    throw '-LauncherArguments requires -Launcher.'
 }
 
 $workingDirectory = [System.IO.Directory]::CreateTempSubdirectory('AliDDNSNet-release-smoke-').FullName
@@ -25,13 +39,19 @@ $accessKey = 'SMOKE_ACCESS_KEY_MUST_NOT_APPEAR'
 
 function Invoke-PublishedApplication([string[]] $Arguments) {
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-    $startInfo.FileName = $executablePath
+    $startInfo.FileName = if ($null -ne $launcherExecutable) { $launcherExecutable } else { $executablePath }
     $startInfo.WorkingDirectory = $workingDirectory
     $startInfo.UseShellExecute = $false
     $startInfo.RedirectStandardInput = $true
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
     $startInfo.Environment['NO_COLOR'] = '1'
+    if ($null -ne $launcherExecutable) {
+        foreach ($argument in $LauncherArguments) {
+            $startInfo.ArgumentList.Add($argument)
+        }
+        $startInfo.ArgumentList.Add($executablePath)
+    }
     foreach ($argument in $Arguments) {
         $startInfo.ArgumentList.Add($argument)
     }
@@ -114,7 +134,8 @@ try {
         throw 'UTF32LE BOM target validation did not return exit 1 with an unsupported-record-type diagnostic.'
     }
 
-    Write-Host "Native published entry-point smoke passed: $executableName"
+    $executionDescription = if ($null -ne $launcherExecutable) { "Launcher-executed via $launcherExecutable" } else { 'Native' }
+    Write-Host "$executionDescription published entry-point smoke passed: $executableName"
 }
 finally {
     Remove-Item -LiteralPath $workingDirectory -Recurse -Force
