@@ -1,4 +1,4 @@
-﻿ARG VERSION=0.0.5
+ARG VERSION=0.0.5
 ARG REVISION=
 
 # Only Alpine package tools run on the target platform (qemu for Arm32).
@@ -6,7 +6,7 @@ FROM --platform=$TARGETPLATFORM alpine:3.24 AS sysroot
 RUN apk add --no-cache gcc musl-dev zlib-dev
 
 # Restore, IL compilation and clang/lld always execute on the build host, never qemu.
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0.403-alpine3.24-aot AS builder
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0.100-alpine3.24-aot AS builder
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
