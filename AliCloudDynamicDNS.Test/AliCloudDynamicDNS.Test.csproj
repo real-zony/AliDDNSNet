@@ -15,7 +15,7 @@
         <PackageReference Include="xunit.v3.mtp-off" Version="4.0.2" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
         <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
-        <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.14" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="11.0.0" PrivateAssets="all" />
         <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
