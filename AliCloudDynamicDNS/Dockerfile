@@ -1,4 +1,4 @@
-﻿ARG VERSION=0.0.5
+ARG VERSION=0.0.5
 ARG REVISION=
 
 # Only Alpine package tools run on the target platform (qemu for Arm32).
@@ -39,7 +39,7 @@ RUN set -eu; \
     test -f /publish/settings.json.example; \
     test ! -e /publish/settings.json
 
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0.14-alpine3.24-extra AS runtime
+FROM mcr.microsoft.com/dotnet/runtime-deps:11.0.0-alpine3.24-extra AS runtime
 ARG VERSION
 ARG REVISION
 LABEL org.opencontainers.image.source="https://github.com/real-zony/AliDDNSNet" \
